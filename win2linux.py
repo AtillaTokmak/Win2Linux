@@ -1,5 +1,5 @@
 """
-Win2Linux Migrator — v2.0
+Win2Linux Migrator — v1.0
 Windows'tan Linux'a geçiş için kapsamlı GUI aracı
 Gereksinim: pip install customtkinter psutil
 """
