@@ -1,34 +1,35 @@
 # Win2Linux Migrator 🐧➡️🏠
 
-Windows’tan Linux’a geçiş sürecini kolaylaştıran modern GUI tabanlı migration aracı.
-Bu proje iki parçadan oluşur:
+Modern GUI-based migration toolkit for moving from Windows to Linux with minimal setup and maximum convenience.
 
-* **Win2Linux Migrator** → Windows tarafında verileri/export paketini oluşturur
-* **Linux2Home Importer** → Linux tarafında paketi içe aktarır ve sistemi hazırlar
+This project consists of two applications:
+
+* **Win2Linux Migrator** → Creates a migration/export package on Windows
+* **Linux2Home Importer** → Imports and restores the package on Linux
 
 ---
 
-## ✨ Özellikler
+# ✨ Features
 
-### 📁 Dosya Migrasyonu
+## 📁 File Migration
 
-* Masaüstü
-* Belgeler
-* İndirilenler
-* Müzik
-* Resimler
-* Videolar
-* Özel klasör desteği
+Transfer your important folders easily:
 
-### 📦 Program Analizi
+* Desktop
+* Documents
+* Downloads
+* Music
+* Pictures
+* Videos
+* Custom folders
 
-Windows’taki kurulu programları tarar ve:
+---
 
-* Linux alternatiflerini önerir
-* Paket yöneticisi kurulum komutları üretir
-* Toplu install komutu oluşturur
+## 📦 Installed Program Detection
 
-Örnek:
+Automatically scans installed Windows applications and suggests Linux alternatives.
+
+Examples:
 
 * Microsoft Office → LibreOffice
 * Photoshop → GIMP
@@ -36,42 +37,43 @@ Windows’taki kurulu programları tarar ve:
 * Discord → Discord
 * Steam → Steam
 
+Also generates ready-to-use Linux package manager install commands.
+
 ---
 
-### 🌐 Browser Verileri
+## 🌐 Browser Migration
 
-Tarayıcı profillerini taşıyabilir:
+Supports browser profile importing for:
 
 * Google Chrome
 * Firefox
-* Edge
+* Microsoft Edge
 * Brave
 
-Desteklenen veriler:
+Transfer:
 
-* Yer imleri
-* Profil klasörleri
-* Kullanıcı verileri
+* bookmarks
+* profiles
+* user data
+* browser settings
 
 ---
 
-### ⚙️ Sistem Konfigürasyonu
+## ⚙️ System Configuration Migration
 
-Migrasyon sırasında:
+Move important configs including:
 
 * `.ssh`
 * `.gitconfig`
-* VSCode ayarları
-* ortam değişkenleri
-* hosts dosyası
-
-gibi yapılandırmalar aktarılabilir.
+* VSCode settings
+* environment variables
+* hosts file
 
 ---
 
-### 🐧 Linux Paket Yöneticisi Desteği
+## 🐧 Linux Package Manager Support
 
-Importer tarafında otomatik algılama:
+Automatically detects:
 
 * apt
 * dnf
@@ -81,27 +83,29 @@ Importer tarafında otomatik algılama:
 
 ---
 
-## 🖼️ Arayüz
+# 🖼️ Interface
 
-Modern dark-themed GUI:
+Modern dark-themed GUI built with CustomTkinter.
 
-* CustomTkinter tabanlı
-* Sidebar navigasyon
-* Kart tabanlı modern tasarım
-* Scrollable içerikler
-* Paket özeti
-* Kurulum komutları
-* Durum göstergeleri
+Features:
+
+* Sidebar navigation
+* Scrollable views
+* Modern card UI
+* Package summary
+* Installation command generator
+* Status indicators
+* Multi-page workflow
 
 ---
 
-# 📦 Proje Yapısı
+# 📦 Project Structure
 
-```text
+```text id="9z8g1l"
 project/
 │
-├── win2linux.py      # Windows export aracı
-├── linux2home.py     # Linux import aracı
+├── win2linux.py      # Windows exporter
+├── linux2home.py     # Linux importer
 │
 └── generated_package/
     ├── files/
@@ -112,129 +116,133 @@ project/
 
 ---
 
-# 🚀 Kurulum
+# 🚀 Installation
 
-## Gereksinimler
+## Requirements
 
 * Python 3.10+
 * pip
 
-## Paketleri Kur
+## Install Dependencies
 
-```bash
+```bash id="3czg2m"
 pip install customtkinter psutil
 ```
 
 ---
 
-# 🪟 Windows Tarafı
+# 🪟 Windows Side
 
-## Çalıştırma
+## Run
 
-```bash
+```bash id="h1v90j"
 python win2linux.py
 ```
 
-## Yapabilecekleri
+## What It Can Do
 
-✅ Dosya seçimi
-✅ Program taraması
-✅ Linux alternatif önerileri
-✅ Browser export
-✅ Sistem config export
-✅ ZIP migration paketi oluşturma
+✅ Select files and folders
+✅ Scan installed applications
+✅ Suggest Linux alternatives
+✅ Export browser data
+✅ Export system configs
+✅ Create ZIP migration package
 
 ---
 
-# 🐧 Linux Tarafı
+# 🐧 Linux Side
 
-## Çalıştırma
+## Run
 
-```bash
+```bash id="4kj6np"
 python linux2home.py
 ```
 
-## Yapabilecekleri
+## What It Can Do
 
-✅ ZIP paketi açma
-✅ Dosyaları home dizinine taşıma
-✅ Browser profillerini import etme
-✅ Sistem config uygulama
-✅ Linux paket kurulum komutları oluşturma
+✅ Open migration ZIP package
+✅ Restore files into home directory
+✅ Import browser profiles
+✅ Apply system configurations
+✅ Generate Linux install commands
 
 ---
 
-# 📦 Örnek Migration Akışı
+# 📦 Example Workflow
 
-## 1️⃣ Windows’ta export oluştur
+## 1️⃣ Create Export Package on Windows
 
-```bash
+```bash id="0b9u7w"
 python win2linux.py
 ```
 
-Export sonucu:
+Generated output:
 
-```text
+```text id="70lm0d"
 W2L_Migration/
 └── W2L_2026-05-08.zip
 ```
 
 ---
 
-## 2️⃣ ZIP dosyasını Linux’a taşı
+## 2️⃣ Transfer ZIP to Linux
 
-USB / ağ / cloud üzerinden taşı.
+Move it using:
+
+* USB drive
+* local network
+* cloud storage
 
 ---
 
-## 3️⃣ Linux’ta import et
+## 3️⃣ Import on Linux
 
-```bash
+```bash id="kg8lzp"
 python linux2home.py
 ```
 
-ZIP’i seç → import işlemini başlat.
+Select the ZIP package and start migration.
 
 ---
 
-# 🧠 Akıllı Program Eşleştirme
+# 🧠 Smart Program Matching
 
-Sistem registry üzerinden kurulu uygulamaları tarar ve:
+The application scans Windows registry entries and intelligently matches Linux alternatives.
 
-```python
-"photoshop" -> ("GIMP", "gimp", "Güçlü görsel editör")
+Example:
+
+```python id="q8jqn7"
+"photoshop" -> ("GIMP", "gimp", "Powerful image editor")
 ```
 
-şeklinde Linux karşılıkları bulur.
+Supports:
 
-Desteklenen kategoriler:
+* Office tools
+* Browsers
+* IDEs
+* Gaming launchers
+* VPN clients
+* Security software
+* Media tools
+* CAD software
+* Development tools
+* System utilities
 
-* Ofis
-* IDE
-* Tasarım
-* Oyun
-* VPN
-* Güvenlik
-* Medya
-* CAD
-* Browser
-* Sistem araçları
-* Geliştirme araçları
-
-100+ uygulama eşleşmesi içerir.
+Includes 100+ application mappings.
 
 ---
 
-# 🔐 Güvenlik
+# 🔐 Privacy & Security
 
-* Veriler tamamen lokal çalışır
-* Sunucuya veri gönderilmez
-* Offline migration desteklenir
-* ZIP paketleri manuel taşınır
+* Fully local operation
+* No cloud upload
+* No telemetry
+* Offline migration supported
+* ZIP packages transferred manually
 
 ---
 
-# 🛠️ Kullanılan Teknolojiler
+# 🛠️ Technologies Used
 
 * Python
 * CustomTkinter
@@ -247,56 +255,56 @@ Desteklenen kategoriler:
 
 ---
 
-# 📌 Desteklenen Platformlar
+# 📌 Supported Platforms
 
-| Sistem     | Destek |
-| ---------- | ------ |
-| Windows 10 | ✅      |
-| Windows 11 | ✅      |
-| Ubuntu     | ✅      |
-| Fedora     | ✅      |
-| Arch Linux | ✅      |
-| openSUSE   | ✅      |
-
----
-
-# ⚠️ Notlar
-
-* Bazı Windows uygulamalarının Linux karşılığı olmayabilir
-* Anti-cheat kullanan bazı oyunlar çalışmayabilir
-* Browser import sırasında hedef browser’ın kurulu olması gerekir
+| Platform   | Supported |
+| ---------- | --------- |
+| Windows 10 | ✅         |
+| Windows 11 | ✅         |
+| Ubuntu     | ✅         |
+| Fedora     | ✅         |
+| Arch Linux | ✅         |
+| openSUSE   | ✅         |
 
 ---
 
-# 🔮 Gelecek Planları
+# ⚠️ Notes
 
-* Wine/Proton entegrasyonu
-* Otomatik Flatpak fallback
-* Tema/export profilleri
+* Some Windows applications may not have Linux alternatives
+* Certain anti-cheat games may not work on Linux
+* Browser importing requires the target browser to be installed
+
+---
+
+# 🔮 Future Plans
+
+* Wine/Proton integration
+* Automatic Flatpak fallback
+* Migration profiles
 * Cloud sync
 * Delta migration
-* Paket doğrulama sistemi
-* Multi-user destek
-* AppImage export desteği
+* Package verification system
+* Multi-user support
+* AppImage export support
 
 ---
 
-# 🤝 Katkıda Bulunma
+# 🤝 Contributing
 
-Pull request’ler ve öneriler her zaman açıktır.
+Pull requests and suggestions are welcome.
 
-```bash
+```bash id="0xksw0"
 git clone <repo>
 ```
 
 ---
 
-# 📜 Lisans
+# 📜 License
 
 MIT License
 
 ---
 
-# 👨‍💻 Geliştirici
+# 👨‍💻 Developer
 
 [Atilla Tokmak GitHub](https://github.com/AtillaTokmak?utm_source=chatgpt.com)
