@@ -11,7 +11,8 @@ This project consists of two applications:
 # 🖼️ Screenshots
 Windows Enviroment:
 ![Windows](https://i.hizliresim.com/dqfm3ih.png)
-
+Linux Enviroment:
+![linux](https://i.hizliresim.com/adzvddn.png)
 # ✨ Features
 
 ## 📁 File Migration
