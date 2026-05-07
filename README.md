@@ -8,6 +8,9 @@ This project consists of two applications:
 * **Linux2Home Importer** → Imports and restores the package on Linux
 
 ---
+# 🖼️ Screenshots
+Windows Enviroment
+https://i.hizliresim.com/dqfm3ih.png
 
 # ✨ Features
 
