@@ -298,6 +298,16 @@ _SKIP_PATTERNS = [
     "setup 0.0",
     "${{",
 ]
+SKIP_FOLDERS = {
+    "Müziğim",
+    "Resimlerim",
+    "Videolarım",
+    "My Music",
+    "My Pictures",
+    "My Videos",
+    "Application Data",
+    "Local Settings"
+}
 
 def _match_alternative(prog_name: str) -> tuple | None:
     """
@@ -934,8 +944,7 @@ class Win2LinuxApp(ctk.CTk):
             try:
                 if kind == "folder":
                     if os.path.isdir(src):
-                        shutil.copytree(src, dst, dirs_exist_ok=True,
-                                        ignore=self._ignore_locked)
+                        self._safe_copy(src, dst)
                     elif os.path.isfile(src):
                         dst.parent.mkdir(parents=True, exist_ok=True)
                         try:
@@ -946,8 +955,7 @@ class Win2LinuxApp(ctk.CTk):
                 elif kind == "copy":
                     dst = Path(dst)
                     if os.path.isdir(src):
-                        shutil.copytree(src, dst, dirs_exist_ok=True,
-                                        ignore=self._ignore_locked)
+                        self._safe_copy(src, dst)
                     else:
                         dst.parent.mkdir(parents=True, exist_ok=True)
                         try:
@@ -1026,6 +1034,53 @@ class Win2LinuxApp(ctk.CTk):
                 return f"{n:.1f} {unit}"
             n /= 1024
         return f"{n:.1f} TB"
+    
+    @staticmethod
+    def _safe_copy(src, dst):
+        src_path = Path(src)
+
+        try:
+            # Symlink / junction skip
+            if src_path.is_symlink():
+                return
+
+            # Klasör
+            if src_path.is_dir():
+                os.makedirs(dst, exist_ok=True)
+
+                for item in src_path.iterdir():
+
+                    # Problemli klasörleri atla
+                    if item.name in SKIP_FOLDERS:
+                        continue
+
+                    try:
+                        # Junction skip
+                        if item.is_symlink():
+                            continue
+
+                        Win2LinuxApp._safe_copy(
+                            str(item),
+                            str(Path(dst) / item.name)
+                        )
+
+                    except PermissionError:
+                        pass
+
+                    except OSError:
+                        pass
+
+            # Dosya
+            else:
+                Path(dst).parent.mkdir(parents=True, exist_ok=True)
+
+                try:
+                    shutil.copy2(src, dst)
+                except (PermissionError, OSError):
+                    pass
+
+        except Exception:
+            pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
