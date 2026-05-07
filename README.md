@@ -9,8 +9,8 @@ This project consists of two applications:
 
 ---
 # 🖼️ Screenshots
-Windows Enviroment
-https://i.hizliresim.com/dqfm3ih.png
+Windows Enviroment:
+![Windows](https://i.hizliresim.com/dqfm3ih.png)
 
 # ✨ Features
 
