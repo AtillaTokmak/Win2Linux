@@ -1,5 +1,5 @@
 """
-Win2Linux Migrator — v2.1
+Win2Linux Migrator — v2.2
 Windows'tan Linux'a geçiş için kapsamlı GUI aracı
 Gereksinim: pip install customtkinter psutil
 """
@@ -35,216 +35,388 @@ WARNING  = "#F59E0B"
 DANGER   = "#EF4444"
 
 # ── Linux alternatifleri veritabanı ──────────────────────────────────────────
+# Yapı: "windows_anahtar": {
+#     "name":     "Linux uygulama adı (görüntüleme için)",
+#     "desc":     "Açıklama",
+#     "packages": {
+#         "apt":     "paket-adi",       # Debian/Ubuntu
+#         "dnf":     "paket-adi",       # Fedora/RHEL
+#         "pacman":  "paket-adi",       # Arch/Manjaro
+#         "zypper":  "paket-adi",       # openSUSE
+#         "flatpak": "org.app.Id",      # Flathub (evrensel)
+#     }
+# }
+# Bir paket yöneticisinde yoksa o anahtar girilmez.
+# "packages" boşsa (desteklenmiyor), dict boş bırakılır.
+
 LINUX_ALTERNATIVES = {
-    "microsoft office":   ("LibreOffice",         "libreoffice",          "Tam uyumlu ofis paketi"),
-    "ms office":          ("LibreOffice",         "libreoffice",          "Tam uyumlu ofis paketi"),
-    "word":               ("LibreOffice Writer",  "libreoffice-writer",   "Word belgelerini açar"),
-    "excel":              ("LibreOffice Calc",     "libreoffice-calc",     "Excel dosyalarını açar"),
-    "powerpoint":         ("LibreOffice Impress", "libreoffice-impress",  "Sunum uygulaması"),
-    "onenote":            ("Obsidian / Joplin",   "obsidian",             "Markdown tabanlı not"),
-    "outlook":            ("Thunderbird",         "thunderbird",          "E-posta istemcisi"),
-    "publisher":          ("Scribus",             "scribus",              "Masaüstü yayıncılık"),
-    "visio":              ("Dia / draw.io",       "dia",                  "Diyagram aracı"),
-    "project":            ("ProjectLibre",        "projectlibre",         "Proje yönetimi"),
-    "microsoft project":  ("ProjectLibre",        "projectlibre",         "Proje yönetimi"),
-    "access":             ("LibreOffice Base",    "libreoffice-base",    "Veritabanı yönetimi"),
-    "wps office":         ("WPS Office",          "wps-office",           "Linux sürümü mevcut"),
-    "onlyoffice":         ("ONLYOFFICE",          "onlyoffice-desktopeditors","Linux sürümü mevcut"),
-    "libreoffice":        ("LibreOffice",         "libreoffice",          "Zaten Linux'ta var!"),
-    "google chrome":      ("Chromium / Firefox",  "chromium-browser",     "Açık kaynak tarayıcı"),
-    "microsoft edge":     ("Firefox",             "firefox",              "Gizlilik odaklı tarayıcı"),
-    "opera":              ("Vivaldi",             "vivaldi",              "Özelleştirilebilir tarayıcı"),
-    "opera gx":           ("Vivaldi / Brave",     "vivaldi",              "Oyuncu odaklı tarayıcı"),
-    "arc browser":        ("Zen Browser",         "zen-browser",          "Modern sekmeli deneyim"),
-    "firefox":            ("Firefox",             "firefox",              "Zaten Linux'ta var!"),
-    "zen browser":        ("Zen Browser",         "zen-browser",          "Linux sürümü mevcut"),
-    "brave":              ("Brave",               "brave-browser",        "Linux sürümü mevcut"),
-    "vivaldi":            ("Vivaldi",             "vivaldi",              "Linux sürümü mevcut"),
-    "chromium":           ("Chromium",            "chromium-browser",     "Zaten Linux'ta var!"),
-    "tor browser":        ("Tor Browser",         "torbrowser-launcher",  "Anonimlik tarayıcısı"),
-    "waterfox":           ("Waterfox",            "waterfox",             "Firefox tabanlı tarayıcı"),
-    "vlc":                ("VLC",                 "vlc",                  "Zaten Linux'ta var!"),
-    "spotify":            ("Spotify",             "spotify",              "Linux sürümü mevcut"),
-    "apple music":        ("Cider",               "cider",                "Apple Music istemcisi"),
-    "itunes":             ("Rhythmbox",           "rhythmbox",            "Müzik çalar"),
-    "windows media":      ("VLC",                 "vlc",                  "Evrensel medya oynatıcı"),
-    "media player":       ("VLC / Celluloid",     "vlc",                  "Medya oynatıcı"),
-    "foobar":             ("DeaDBeeF",            "deadbeef",             "Hafif müzik çalar"),
-    "musicbee":           ("Rhythmbox / Clementine","rhythmbox",          "Müzik yöneticisi"),
-    "potplayer":          ("VLC / mpv",           "mpv",                  "Video oynatıcı"),
-    "mpc-hc":             ("mpv",                 "mpv",                  "Hafif video oynatıcı"),
-    "plex":               ("Jellyfin",            "jellyfin",             "Medya sunucusu"),
-    "jriver":             ("Strawberry",          "strawberry",           "Müzik koleksiyonu yöneticisi"),
-    "audacity":           ("Audacity",            "audacity",             "Ses düzenleyici"),
-    "ableton":            ("Bitwig Studio",       "bitwig-studio",        "Müzik prodüksiyonu"),
-    "fl studio":          ("LMMS",                "lmms",                 "Beat yapım aracı"),
-    "cubase":             ("Ardour",              "ardour",               "DAW alternatifi"),
-    "reaper":             ("REAPER",              "reaper",               "Linux sürümü mevcut"),
-    "mpv":                ("mpv",                 "mpv",                  "Zaten Linux'ta var!"),
-    "kodi":               ("Kodi",                "kodi",                 "Zaten Linux'ta var!"),
-    "obs studio":         ("OBS Studio",          "obs-studio",           "Zaten Linux'ta var!"),
-    "obs":                ("OBS Studio",          "obs-studio",           "Zaten Linux'ta var!"),
-    "bandicam":           ("OBS Studio",          "obs-studio",           "Ekran kayıt aracı"),
-    "medal":              ("GPU Screen Recorder", "gpu-screen-recorder",  "Hafif oyun kayıt aracı"),
-    "shadowplay":         ("GPU Screen Recorder", "gpu-screen-recorder",  "NVIDIA kayıt alternatifi"),
-    "xsplit":             ("OBS Studio",          "obs-studio",           "Yayın yazılımı"),
-    "streamlabs":         ("OBS Studio",          "obs-studio",           "Yayın yazılımı"),
-    "camtasia":           ("Kdenlive / OBS",      "kdenlive",             "Video kayıt & düzenleme"),
-    "adobe photoshop":    ("GIMP",                "gimp",                 "Güçlü görsel editör"),
-    "photoshop":          ("GIMP",                "gimp",                 "Güçlü görsel editör"),
-    "adobe illustrator":  ("Inkscape",            "inkscape",             "Vektör grafik editörü"),
-    "illustrator":        ("Inkscape",            "inkscape",             "Vektör grafik editörü"),
-    "adobe premiere":     ("DaVinci Resolve / Kdenlive","kdenlive",       "Video editörü"),
-    "premiere":           ("Kdenlive",            "kdenlive",             "Video editörü"),
-    "after effects":      ("Natron / Blender",    "natron",               "Efekt & kompozisyon"),
-    "cinema 4d":          ("Blender",             "blender",              "3D modelleme"),
-    "maya":               ("Blender",             "blender",              "3D animasyon"),
-    "zbrush":             ("Blender Sculpt",      "blender",              "Dijital heykel"),
-    "substance painter":  ("ArmorPaint",          "armorpaint",           "PBR texture boyama"),
-    "paint tool sai":     ("Krita",               "krita",                "Dijital çizim"),
-    "clip studio paint":  ("Krita",               "krita",                "Manga & çizim"),
-    "paint.net":          ("Pinta",               "pinta",                "Basit görsel editör"),
-    "adobe xd":           ("Penpot",              "penpot",               "UI/UX tasarım aracı"),
-    "lightroom":          ("Darktable / RawTherapee","darktable",         "Fotoğraf düzenleme"),
-    "adobe lightroom":    ("Darktable",           "darktable",            "RAW fotoğraf işleme"),
-    "adobe acrobat":      ("Okular / Evince",     "okular",               "PDF okuyucu & editör"),
-    "acrobat":            ("Okular",              "okular",               "PDF okuyucu"),
-    "figma":              ("Figma",               "figma-linux",          "Linux sürümü mevcut"),
-    "blender":            ("Blender",             "blender",              "Zaten Linux'ta var!"),
-    "inkscape":           ("Inkscape",            "inkscape",             "Zaten Linux'ta var!"),
-    "gimp":               ("GIMP",                "gimp",                 "Zaten Linux'ta var!"),
-    "krita":              ("Krita",               "krita",                "Zaten Linux'ta var!"),
-    "darktable":          ("Darktable",           "darktable",            "Zaten Linux'ta var!"),
-    "visual studio code": ("VS Code",             "code",                 "Zaten Linux'ta var!"),
-    "visual studio":      ("VS Code + JetBrains", "code",                 "IDE alternatifleri"),
-    "rider":              ("JetBrains Rider",     "rider",                "C# IDE"),
-    "android studio":     ("Android Studio",      "android-studio",       "Linux sürümü mevcut"),
-    "netbeans":           ("Apache NetBeans",     "netbeans",             "Java IDE"),
-    "notepad++":          ("Kate / Gedit",        "kate",                 "Güçlü metin editörü"),
-    "sublime text":       ("Kate / Gedit",        "kate",                 "Metin editörü"),
-    "atom":               ("VS Code",             "code",                 "Modern editör"),
-    "intellij":           ("IntelliJ IDEA",       "intellij-idea-community","Linux sürümü mevcut"),
-    "pycharm":            ("PyCharm",             "pycharm-community",    "Linux sürümü mevcut"),
-    "webstorm":           ("WebStorm / VS Code",  "code",                 "JS/TS IDE"),
-    "clion":              ("CLion / VS Code",     "code",                 "C++ IDE"),
-    "eclipse":            ("Eclipse",             "eclipse",              "Zaten Linux'ta var!"),
-    "arduino":            ("Arduino IDE",         "arduino",              "Linux sürümü mevcut"),
-    "putty":              ("SSH (built-in)",      "openssh-client",       "Linux'ta yerleşik"),
-    "winscp":             ("FileZilla / SFTP",    "filezilla",            "Dosya aktarımı"),
-    "mobaxterm":          ("Terminator / Remmina","terminator",           "Terminal ve SSH"),
-    "github desktop":     ("GitHub Desktop",      "github-desktop",       "Linux sürümü mevcut"),
-    "gitkraken":          ("GitKraken",           "gitkraken",            "Git GUI istemcisi"),
-    "sourcetree":         ("GitKraken / Git Cola","gitkraken",            "Git istemcisi"),
-    "postman":            ("Postman",             "postman",              "Linux sürümü mevcut"),
-    "insomnia":           ("Insomnia",            "insomnia",             "Linux sürümü mevcut"),
-    "bruno":              ("Bruno",               "bruno",                "API test aracı"),
-    "dbeaver":            ("DBeaver",             "dbeaver",              "Zaten Linux'ta var!"),
-    "heidisql":           ("DBeaver / MySQL Workbench","dbeaver",         "Veritabanı yöneticisi"),
-    "xampp":              ("LAMP Stack",          "apache2",              "Web sunucu paketi"),
-    "wamp":               ("LAMP Stack",          "apache2",              "Apache + PHP + MariaDB"),
-    "laragon":            ("LAMP / Docker",       "docker.io",            "Web geliştirme ortamı"),
-    "docker desktop":     ("Docker",              "docker.io",            "Linux'ta yerel destek"),
-    "git":                ("Git",                 "git",                  "Zaten Linux'ta var!"),
-    "node.js":            ("Node.js",             "nodejs",               "Zaten Linux'ta var!"),
-    "python":             ("Python",              "python3",              "Zaten Linux'ta var!"),
-    "golang":             ("Go",                  "golang",               "Linux desteği mevcut"),
-    "rust":               ("Rust",                "rustc",                "Linux desteği mevcut"),
-    "wireshark":          ("Wireshark",           "wireshark",            "Zaten Linux'ta var!"),
-    "virtualbox":         ("VirtualBox",          "virtualbox",           "Linux sürümü mevcut"),
-    "vmware":             ("VirtualBox / QEMU",   "virtualbox",           "Sanallaştırma"),
-    "hyper-v":            ("KVM / QEMU",          "qemu-kvm",             "Linux yerleşik VM"),
-    "7-zip":              ("7-Zip / p7zip",       "p7zip-full",           "Arşiv aracı"),
-    "winrar":             ("p7zip / Ark",         "p7zip-full",           "Arşiv aracı"),
-    "peazip":             ("PeaZip",              "peazip",               "Arşiv yöneticisi"),
-    "ccleaner":           ("BleachBit",           "bleachbit",            "Sistem temizleyici"),
-    "everything":         ("fd / locate",         "fd-find",              "Terminal tabanlı arama"),
-    "rainmeter":          ("Conky",               "conky",                "Masaüstü widget sistemi"),
-    "wallpaper engine":   ("Komorebi / Hidamari", "komorebi",             "Animasyonlu duvar kağıdı"),
-    "crystaldiskinfo":    ("GSmartControl",       "gsmartcontrol",        "Disk sağlığı izleyici"),
-    "hwmonitor":          ("Psensor",             "psensor",              "Donanım izleme"),
-    "cpu-z":              ("CPU-X",               "cpux",                 "CPU bilgisi"),
-    "gpu-z":              ("GPU-Viewer / sensors","gpuinfo",              "GPU bilgisi"),
-    "msi afterburner":    ("CoreCtrl / GreenWithEnvy","corectrl",         "GPU hız aşırtma"),
-    "autohotkey":         ("AutoKey",             "autokey-gtk",          "Tuş makroları"),
-    "process hacker":     ("htop / btop",         "btop",                 "Sistem süreç yöneticisi"),
-    "task manager":       ("btop / System Monitor","btop",                "Sistem izleme"),
-    "revo uninstaller":   ("Stacer",              "stacer",               "Uygulama kaldırıcı"),
-    "rufus":              ("Ventoy",              "ventoy",               "USB boot aracı"),
-    "balena etcher":      ("Etcher",              "balena-etcher",        "USB yazdırma aracı"),
-    "ventoy":             ("Ventoy",              "ventoy",               "Çoklu ISO boot aracı"),
-    "tailscale":          ("Tailscale",           "tailscale",            "Linux sürümü mevcut"),
-    "syncthing":          ("Syncthing",           "syncthing",            "Dosya senkronizasyonu"),
-    "teamviewer":         ("RustDesk / AnyDesk",  "rustdesk",             "Uzak masaüstü"),
-    "anydesk":            ("AnyDesk",             "anydesk",              "Linux sürümü mevcut"),
-    "rustdesk":           ("RustDesk",            "rustdesk",             "Zaten Linux'ta var!"),
-    "parsec":             ("Sunshine + Moonlight","sunshine",             "Düşük gecikmeli yayın"),
-    "openvpn":            ("OpenVPN",             "openvpn",              "VPN istemcisi"),
-    "malwarebytes":       ("ClamAV / Maldet",     "clamav",               "Açık kaynak antivirüs"),
-    "avast":              ("ClamAV",              "clamav",               "Açık kaynak antivirüs"),
-    "bitdefender":        ("Bitdefender",         "bitdefender",          "Linux sürümü mevcut"),
-    "windows defender":   ("ClamAV",              "clamav",               "Açık kaynak antivirüs"),
-    "bitwarden":          ("Bitwarden",           "bitwarden",            "Zaten Linux'ta var!"),
-    "keepass":            ("KeePassXC",           "keepassxc",            "Şifre yöneticisi"),
-    "lastpass":           ("Bitwarden",           "bitwarden",            "Açık kaynak alternatif"),
-    "authy":              ("Aegis / Authenticator","authenticator",        "2FA uygulaması"),
-    "discord":            ("Discord",             "discord",              "Linux sürümü mevcut"),
-    "slack":              ("Slack",               "slack-desktop",        "Linux sürümü mevcut"),
-    "telegram":           ("Telegram",            "telegram-desktop",     "Zaten Linux'ta var!"),
-    "zoom":               ("Zoom",                "zoom",                 "Linux sürümü mevcut"),
-    "microsoft teams":    ("MS Teams",            "teams",                "Linux sürümü mevcut"),
-    "skype":              ("Skype",               "skype",                "Linux sürümü mevcut"),
-    "whatsapp":           ("WhatsApp Web / Signal","signal-desktop",      "Gizlilik odaklı alternatif"),
-    "signal":             ("Signal",              "signal-desktop",       "Zaten Linux'ta var!"),
-    "element":            ("Element",             "element-desktop",      "Matrix istemcisi"),
-    "steam":              ("Steam",               "steam",                "Linux'ta çalışır"),
-    "epic games":         ("Heroic Games Launcher","heroic",              "Epic & GOG alternatif launcher"),
-    "gog galaxy":         ("Heroic Games Launcher","heroic",              "GOG kütüphanesi"),
-    "battle.net":         ("Lutris",              "lutris",               "Blizzard oyunları için"),
-    "minecraft launcher": ("Prism Launcher",      "prismlauncher",        "Minecraft launcher"),
-    "curseforge":         ("Prism Launcher",      "prismlauncher",        "Minecraft mod yönetimi"),
-    "riot vanguard":      ("— (Desteklenmiyor)",  "",                     "Kernel-level AC, Linux'ta çalışmaz"),
-    "valorant":           ("— (Desteklenmiyor)",  "",                     "Vanguard yüzünden Linux'ta yok"),
-    "roblox":             ("Sober (Flatpak)",     "sober",                "Native Linux Roblox istemcisi"),
-    "osu!":               ("osu!lazer",           "osu-lazer",            "Linux sürümü mevcut"),
-    "retroarch":          ("RetroArch",           "retroarch",            "Emülasyon platformu"),
-    "yuzu":               ("Ryujinx",             "ryujinx",              "Switch emülasyonu"),
-    "cemu":               ("Cemu",                "cemu",                 "Wii U emülatörü"),
-    "solidworks":         ("FreeCAD / OpenSCAD",  "freecad",              "Açık kaynak CAD"),
-    "autocad":            ("FreeCAD / LibreCAD",  "freecad",              "2D/3D CAD alternatifi"),
-    "fusion 360":         ("FreeCAD",             "freecad",              "3D modelleme"),
-    "catia":              ("FreeCAD",             "freecad",              "CAD alternatifi"),
-    "matlab":             ("GNU Octave",          "octave",               "Matematiksel analiz"),
-    "simulink":           ("Scilab / Xcos",       "scilab",               "Simülasyon aracı"),
-    "labview":            ("OpenPLC / Python",    "python3",              "Otomasyon geliştirme"),
-    "onedrive":           ("Nextcloud / rclone",  "nextcloud-desktop",    "Bulut depolama"),
-    "dropbox":            ("Dropbox",             "dropbox",              "Linux sürümü mevcut"),
-    "google drive":       ("rclone / Insync",     "rclone",               "Google Drive bağlantısı"),
-    "mega":               ("MEGAsync",            "megasync",             "Bulut depolama"),
-    "teracopy":           ("rsync / RapidCopy",   "rsync",                "Hızlı dosya kopyalama"),
-    "filezilla":          ("FileZilla",           "filezilla",            "Zaten Linux'ta var!"),
-    "winmerge":           ("Meld",                "meld",                 "Dosya karşılaştırma"),
-    "qbittorrent":        ("qBittorrent",         "qbittorrent",          "Zaten Linux'ta var!"),
-    "utorrent":           ("qBittorrent",         "qbittorrent",          "Açık kaynak alternatif"),
-    "nordvpn":            ("NordVPN",             "nordvpn",              "Linux sürümü mevcut"),
-    "expressvpn":         ("ProtonVPN",           "protonvpn",            "VPN alternatifi"),
-    "protonvpn":          ("ProtonVPN",           "protonvpn",            "Linux sürümü mevcut"),
-    "mullvad":            ("Mullvad VPN",         "mullvad-vpn",          "Linux sürümü mevcut"),
-    "surfshark":          ("Surfshark",           "surfshark",            "Linux sürümü mevcut"),
-    "microsoft .net":     (".NET SDK (Linux)",    "dotnet-sdk-8",         "Linux .NET desteği tam"),
-    "microsoft asp.net":  ("ASP.NET Core (Linux)","dotnet-sdk-8",         "Linux web geliştirme"),
-    "visual c++":         ("GCC / Clang",         "build-essential",      "Linux derleyici araçları"),
-    "java runtime":       ("OpenJDK",             "openjdk-21-jdk",       "Java runtime alternatifi"),
-    "directx":            ("Vulkan / DXVK",       "vulkan-tools",         "Grafik API desteği"),
-    "samfw":              ("Heimdall",            "heimdall-flash",       "Samsung flash alternatifi"),
-    "icloud":             ("iCloud Web",          "firefox",              "Tarayıcı üzerinden erişim"),
-    "amazon kindle":      ("Calibre",             "calibre",              "E-kitap yöneticisi"),
-    "calibre":            ("Calibre",             "calibre",              "Zaten Linux'ta var!"),
-    "notion":             ("Notion",              "notion-app",           "Linux istemcisi mevcut"),
-    "obsidian":           ("Obsidian",            "obsidian",             "Zaten Linux'ta var!"),
-    "joplin":             ("Joplin",              "joplin",               "Zaten Linux'ta var!"),
-    "anki":               ("Anki",                "anki",                 "Kart tabanlı öğrenme"),
-    "draw.io":            ("draw.io",             "drawio",               "Diyagram oluşturucu"),
-    "etcher":             ("balenaEtcher",        "balena-etcher",        "USB yazdırma aracı"),
+    # ── Ofis ──────────────────────────────────────────────────────────────────
+    "microsoft office":  {"name": "LibreOffice",         "desc": "Tam uyumlu ofis paketi",
+        "packages": {"apt": "libreoffice", "dnf": "libreoffice", "pacman": "libreoffice-fresh", "zypper": "libreoffice", "flatpak": "org.libreoffice.LibreOffice"}},
+    "ms office":         {"name": "LibreOffice",         "desc": "Tam uyumlu ofis paketi",
+        "packages": {"apt": "libreoffice", "dnf": "libreoffice", "pacman": "libreoffice-fresh", "zypper": "libreoffice", "flatpak": "org.libreoffice.LibreOffice"}},
+    "word":              {"name": "LibreOffice Writer",  "desc": "Word belgelerini açar",
+        "packages": {"apt": "libreoffice-writer", "dnf": "libreoffice-writer", "pacman": "libreoffice-fresh", "zypper": "libreoffice-writer", "flatpak": "org.libreoffice.LibreOffice"}},
+    "excel":             {"name": "LibreOffice Calc",    "desc": "Excel dosyalarını açar",
+        "packages": {"apt": "libreoffice-calc", "dnf": "libreoffice-calc", "pacman": "libreoffice-fresh", "zypper": "libreoffice-calc", "flatpak": "org.libreoffice.LibreOffice"}},
+    "powerpoint":        {"name": "LibreOffice Impress", "desc": "Sunum uygulaması",
+        "packages": {"apt": "libreoffice-impress", "dnf": "libreoffice-impress", "pacman": "libreoffice-fresh", "zypper": "libreoffice-impress", "flatpak": "org.libreoffice.LibreOffice"}},
+    "onenote":           {"name": "Obsidian",            "desc": "Markdown tabanlı not",
+        "packages": {"apt": "obsidian", "dnf": "obsidian", "pacman": "obsidian", "flatpak": "md.obsidian.Obsidian"}},
+    "outlook":           {"name": "Thunderbird",         "desc": "E-posta istemcisi",
+        "packages": {"apt": "thunderbird", "dnf": "thunderbird", "pacman": "thunderbird", "zypper": "thunderbird", "flatpak": "org.mozilla.Thunderbird"}},
+    "publisher":         {"name": "Scribus",             "desc": "Masaüstü yayıncılık",
+        "packages": {"apt": "scribus", "dnf": "scribus", "pacman": "scribus", "zypper": "scribus", "flatpak": "net.scribus.Scribus"}},
+    "visio":             {"name": "Dia",                 "desc": "Diyagram aracı",
+        "packages": {"apt": "dia", "dnf": "dia", "pacman": "dia", "zypper": "dia"}},
+    "project":           {"name": "ProjectLibre",        "desc": "Proje yönetimi",
+        "packages": {"apt": "projectlibre", "flatpak": "com.projectlibre.ProjectLibre"}},
+    "microsoft project": {"name": "ProjectLibre",        "desc": "Proje yönetimi",
+        "packages": {"apt": "projectlibre", "flatpak": "com.projectlibre.ProjectLibre"}},
+    "access":            {"name": "LibreOffice Base",    "desc": "Veritabanı yönetimi",
+        "packages": {"apt": "libreoffice-base", "dnf": "libreoffice-base", "pacman": "libreoffice-fresh", "zypper": "libreoffice-base"}},
+    "libreoffice":       {"name": "LibreOffice",         "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "libreoffice", "dnf": "libreoffice", "pacman": "libreoffice-fresh", "zypper": "libreoffice", "flatpak": "org.libreoffice.LibreOffice"}},
+
+    # ── Tarayıcılar ────────────────────────────────────────────────────────────
+    "google chrome":     {"name": "Chromium",            "desc": "Açık kaynak Chrome tabanlı tarayıcı",
+        "packages": {"apt": "chromium-browser", "dnf": "chromium", "pacman": "chromium", "zypper": "chromium", "flatpak": "org.chromium.Chromium"}},
+    "microsoft edge":    {"name": "Firefox",             "desc": "Gizlilik odaklı tarayıcı",
+        "packages": {"apt": "firefox", "dnf": "firefox", "pacman": "firefox", "zypper": "firefox", "flatpak": "org.mozilla.firefox"}},
+    "opera":             {"name": "Vivaldi",             "desc": "Özelleştirilebilir tarayıcı",
+        "packages": {"apt": "vivaldi-stable", "dnf": "vivaldi-stable", "pacman": "vivaldi", "flatpak": "com.vivaldi.Vivaldi"}},
+    "opera gx":          {"name": "Vivaldi",             "desc": "Özelleştirilebilir tarayıcı",
+        "packages": {"apt": "vivaldi-stable", "dnf": "vivaldi-stable", "pacman": "vivaldi", "flatpak": "com.vivaldi.Vivaldi"}},
+    "firefox":           {"name": "Firefox",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "firefox", "dnf": "firefox", "pacman": "firefox", "zypper": "firefox", "flatpak": "org.mozilla.firefox"}},
+    "brave":             {"name": "Brave",               "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "brave-browser", "dnf": "brave-browser", "pacman": "brave-bin", "flatpak": "com.brave.Browser"}},
+    "vivaldi":           {"name": "Vivaldi",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "vivaldi-stable", "dnf": "vivaldi-stable", "pacman": "vivaldi", "flatpak": "com.vivaldi.Vivaldi"}},
+    "chromium":          {"name": "Chromium",            "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "chromium-browser", "dnf": "chromium", "pacman": "chromium", "zypper": "chromium", "flatpak": "org.chromium.Chromium"}},
+    "tor browser":       {"name": "Tor Browser",         "desc": "Anonimlik tarayıcısı",
+        "packages": {"apt": "torbrowser-launcher", "dnf": "torbrowser-launcher", "pacman": "torbrowser-launcher", "flatpak": "com.github.micahflee.torbrowser-launcher"}},
+    "arc browser":       {"name": "Zen Browser",         "desc": "Modern sekmeli deneyim",
+        "packages": {"flatpak": "io.github.zen_browser.zen"}},
+
+    # ── Medya ──────────────────────────────────────────────────────────────────
+    "vlc":               {"name": "VLC",                 "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "vlc", "dnf": "vlc", "pacman": "vlc", "zypper": "vlc", "flatpak": "org.videolan.VLC"}},
+    "spotify":           {"name": "Spotify",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "spotify-client", "pacman": "spotify", "flatpak": "com.spotify.Client"}},
+    "apple music":       {"name": "Cider",               "desc": "Apple Music istemcisi",
+        "packages": {"flatpak": "sh.cider.Cider"}},
+    "itunes":            {"name": "Rhythmbox",           "desc": "Müzik çalar",
+        "packages": {"apt": "rhythmbox", "dnf": "rhythmbox", "pacman": "rhythmbox", "zypper": "rhythmbox", "flatpak": "org.gnome.Rhythmbox3"}},
+    "windows media":     {"name": "VLC",                 "desc": "Evrensel medya oynatıcı",
+        "packages": {"apt": "vlc", "dnf": "vlc", "pacman": "vlc", "zypper": "vlc", "flatpak": "org.videolan.VLC"}},
+    "foobar":            {"name": "DeaDBeeF",            "desc": "Hafif müzik çalar",
+        "packages": {"apt": "deadbeef", "dnf": "deadbeef", "pacman": "deadbeef", "flatpak": "io.gitlab.deadbeef_player.DeaDBeeF"}},
+    "musicbee":          {"name": "Rhythmbox",           "desc": "Müzik yöneticisi",
+        "packages": {"apt": "rhythmbox", "dnf": "rhythmbox", "pacman": "rhythmbox", "flatpak": "org.gnome.Rhythmbox3"}},
+    "potplayer":         {"name": "mpv",                 "desc": "Video oynatıcı",
+        "packages": {"apt": "mpv", "dnf": "mpv", "pacman": "mpv", "zypper": "mpv", "flatpak": "io.mpv.Mpv"}},
+    "mpc-hc":            {"name": "mpv",                 "desc": "Hafif video oynatıcı",
+        "packages": {"apt": "mpv", "dnf": "mpv", "pacman": "mpv", "zypper": "mpv", "flatpak": "io.mpv.Mpv"}},
+    "mpv":               {"name": "mpv",                 "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "mpv", "dnf": "mpv", "pacman": "mpv", "zypper": "mpv", "flatpak": "io.mpv.Mpv"}},
+    "kodi":              {"name": "Kodi",                "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "kodi", "dnf": "kodi", "pacman": "kodi", "flatpak": "tv.kodi.Kodi"}},
+    "plex":              {"name": "Jellyfin",            "desc": "Medya sunucusu",
+        "packages": {"apt": "jellyfin", "dnf": "jellyfin", "flatpak": "com.github.iwalton3.jellyfin-media-player"}},
+
+    # ── Ses Üretim ────────────────────────────────────────────────────────────
+    "audacity":          {"name": "Audacity",            "desc": "Ses düzenleyici",
+        "packages": {"apt": "audacity", "dnf": "audacity", "pacman": "audacity", "zypper": "audacity", "flatpak": "org.audacityteam.Audacity"}},
+    "fl studio":         {"name": "LMMS",                "desc": "Beat yapım aracı",
+        "packages": {"apt": "lmms", "dnf": "lmms", "pacman": "lmms", "zypper": "lmms", "flatpak": "io.lmms.LMMS"}},
+    "cubase":            {"name": "Ardour",              "desc": "DAW alternatifi",
+        "packages": {"apt": "ardour", "dnf": "ardour", "pacman": "ardour", "flatpak": "org.ardour.Ardour"}},
+    "reaper":            {"name": "REAPER",              "desc": "Linux sürümü mevcut (manuel kurulum)",
+        "packages": {}},
+    "ableton":           {"name": "Bitwig Studio",       "desc": "Müzik prodüksiyonu",
+        "packages": {"flatpak": "com.bitwig.BitwigStudio"}},
+
+    # ── Video Kayıt / Yayın ───────────────────────────────────────────────────
+    "obs studio":        {"name": "OBS Studio",          "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "obs-studio", "dnf": "obs-studio", "pacman": "obs-studio", "zypper": "obs-studio", "flatpak": "com.obsproject.Studio"}},
+    "obs":               {"name": "OBS Studio",          "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "obs-studio", "dnf": "obs-studio", "pacman": "obs-studio", "zypper": "obs-studio", "flatpak": "com.obsproject.Studio"}},
+    "bandicam":          {"name": "OBS Studio",          "desc": "Ekran kayıt aracı",
+        "packages": {"apt": "obs-studio", "dnf": "obs-studio", "pacman": "obs-studio", "flatpak": "com.obsproject.Studio"}},
+    "camtasia":          {"name": "Kdenlive",            "desc": "Video kayıt & düzenleme",
+        "packages": {"apt": "kdenlive", "dnf": "kdenlive", "pacman": "kdenlive", "zypper": "kdenlive", "flatpak": "org.kde.kdenlive"}},
+
+    # ── Grafik & Tasarım ──────────────────────────────────────────────────────
+    "adobe photoshop":   {"name": "GIMP",                "desc": "Güçlü görsel editör",
+        "packages": {"apt": "gimp", "dnf": "gimp", "pacman": "gimp", "zypper": "gimp", "flatpak": "org.gimp.GIMP"}},
+    "photoshop":         {"name": "GIMP",                "desc": "Güçlü görsel editör",
+        "packages": {"apt": "gimp", "dnf": "gimp", "pacman": "gimp", "zypper": "gimp", "flatpak": "org.gimp.GIMP"}},
+    "adobe illustrator": {"name": "Inkscape",            "desc": "Vektör grafik editörü",
+        "packages": {"apt": "inkscape", "dnf": "inkscape", "pacman": "inkscape", "zypper": "inkscape", "flatpak": "org.inkscape.Inkscape"}},
+    "illustrator":       {"name": "Inkscape",            "desc": "Vektör grafik editörü",
+        "packages": {"apt": "inkscape", "dnf": "inkscape", "pacman": "inkscape", "zypper": "inkscape", "flatpak": "org.inkscape.Inkscape"}},
+    "adobe premiere":    {"name": "Kdenlive",            "desc": "Video editörü",
+        "packages": {"apt": "kdenlive", "dnf": "kdenlive", "pacman": "kdenlive", "zypper": "kdenlive", "flatpak": "org.kde.kdenlive"}},
+    "premiere":          {"name": "Kdenlive",            "desc": "Video editörü",
+        "packages": {"apt": "kdenlive", "dnf": "kdenlive", "pacman": "kdenlive", "zypper": "kdenlive", "flatpak": "org.kde.kdenlive"}},
+    "after effects":     {"name": "Natron",              "desc": "Efekt & kompozisyon",
+        "packages": {"apt": "natron", "dnf": "natron", "pacman": "natron", "flatpak": "fr.natron.Natron"}},
+    "cinema 4d":         {"name": "Blender",             "desc": "3D modelleme",
+        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
+    "maya":              {"name": "Blender",             "desc": "3D animasyon",
+        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
+    "zbrush":            {"name": "Blender Sculpt",      "desc": "Dijital heykel",
+        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
+    "paint tool sai":    {"name": "Krita",               "desc": "Dijital çizim",
+        "packages": {"apt": "krita", "dnf": "krita", "pacman": "krita", "zypper": "krita", "flatpak": "org.kde.krita"}},
+    "clip studio paint": {"name": "Krita",               "desc": "Manga & çizim",
+        "packages": {"apt": "krita", "dnf": "krita", "pacman": "krita", "zypper": "krita", "flatpak": "org.kde.krita"}},
+    "paint.net":         {"name": "Pinta",               "desc": "Basit görsel editör",
+        "packages": {"apt": "pinta", "dnf": "pinta", "pacman": "pinta", "flatpak": "com.github.PintaProject.Pinta"}},
+    "adobe xd":          {"name": "Penpot",              "desc": "UI/UX tasarım aracı (web)",
+        "packages": {"flatpak": "design.penpot.Penpot"}},
+    "lightroom":         {"name": "Darktable",           "desc": "Fotoğraf düzenleme",
+        "packages": {"apt": "darktable", "dnf": "darktable", "pacman": "darktable", "zypper": "darktable", "flatpak": "org.darktable.Darktable"}},
+    "adobe lightroom":   {"name": "Darktable",           "desc": "RAW fotoğraf işleme",
+        "packages": {"apt": "darktable", "dnf": "darktable", "pacman": "darktable", "zypper": "darktable", "flatpak": "org.darktable.Darktable"}},
+    "adobe acrobat":     {"name": "Okular",              "desc": "PDF okuyucu & editör",
+        "packages": {"apt": "okular", "dnf": "okular", "pacman": "okular", "zypper": "okular", "flatpak": "org.kde.okular"}},
+    "acrobat":           {"name": "Okular",              "desc": "PDF okuyucu",
+        "packages": {"apt": "okular", "dnf": "okular", "pacman": "okular", "zypper": "okular", "flatpak": "org.kde.okular"}},
+    "figma":             {"name": "Figma",               "desc": "Linux sürümü mevcut",
+        "packages": {"flatpak": "io.github.Figma_Linux.figma_linux"}},
+    "blender":           {"name": "Blender",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
+    "inkscape":          {"name": "Inkscape",            "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "inkscape", "dnf": "inkscape", "pacman": "inkscape", "zypper": "inkscape", "flatpak": "org.inkscape.Inkscape"}},
+    "gimp":              {"name": "GIMP",                "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "gimp", "dnf": "gimp", "pacman": "gimp", "zypper": "gimp", "flatpak": "org.gimp.GIMP"}},
+    "krita":             {"name": "Krita",               "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "krita", "dnf": "krita", "pacman": "krita", "zypper": "krita", "flatpak": "org.kde.krita"}},
+    "darktable":         {"name": "Darktable",           "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "darktable", "dnf": "darktable", "pacman": "darktable", "zypper": "darktable", "flatpak": "org.darktable.Darktable"}},
+
+    # ── Geliştirme Ortamları ──────────────────────────────────────────────────
+    "visual studio code":{"name": "VS Code",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "code", "dnf": "code", "pacman": "code", "zypper": "code", "flatpak": "com.visualstudio.code"}},
+    "visual studio":     {"name": "VS Code",             "desc": "IDE alternatifi",
+        "packages": {"apt": "code", "dnf": "code", "pacman": "code", "flatpak": "com.visualstudio.code"}},
+    "notepad++":         {"name": "Kate",                "desc": "Güçlü metin editörü",
+        "packages": {"apt": "kate", "dnf": "kate", "pacman": "kate", "zypper": "kate", "flatpak": "org.kde.kate"}},
+    "sublime text":      {"name": "Kate",                "desc": "Metin editörü",
+        "packages": {"apt": "kate", "dnf": "kate", "pacman": "kate", "zypper": "kate", "flatpak": "org.kde.kate"}},
+    "atom":              {"name": "VS Code",             "desc": "Modern editör",
+        "packages": {"apt": "code", "dnf": "code", "pacman": "code", "flatpak": "com.visualstudio.code"}},
+    "intellij":          {"name": "IntelliJ IDEA",       "desc": "Linux sürümü mevcut",
+        "packages": {"pacman": "intellij-idea-community-edition", "flatpak": "com.jetbrains.IntelliJ-IDEA-Community"}},
+    "pycharm":           {"name": "PyCharm",             "desc": "Linux sürümü mevcut",
+        "packages": {"pacman": "pycharm-community", "flatpak": "com.jetbrains.PyCharm-Community"}},
+    "rider":             {"name": "JetBrains Rider",     "desc": "C# IDE",
+        "packages": {"flatpak": "com.jetbrains.Rider"}},
+    "android studio":    {"name": "Android Studio",      "desc": "Linux sürümü mevcut",
+        "packages": {"pacman": "android-studio", "flatpak": "com.google.AndroidStudio"}},
+    "eclipse":           {"name": "Eclipse",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "eclipse", "dnf": "eclipse", "pacman": "eclipse-java", "flatpak": "org.eclipse.Java"}},
+    "arduino":           {"name": "Arduino IDE",         "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "arduino", "dnf": "arduino", "pacman": "arduino", "flatpak": "cc.arduino.IDE2"}},
+    "putty":             {"name": "OpenSSH (built-in)",  "desc": "Linux'ta yerleşik",
+        "packages": {"apt": "openssh-client", "dnf": "openssh-clients", "pacman": "openssh", "zypper": "openssh"}},
+    "winscp":            {"name": "FileZilla",           "desc": "Dosya aktarımı",
+        "packages": {"apt": "filezilla", "dnf": "filezilla", "pacman": "filezilla", "zypper": "filezilla", "flatpak": "org.filezilla_project.FileZilla"}},
+    "github desktop":    {"name": "GitHub Desktop",      "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "github-desktop", "pacman": "github-desktop-bin", "flatpak": "io.github.shiftey.Desktop"}},
+    "gitkraken":         {"name": "GitKraken",           "desc": "Git GUI istemcisi",
+        "packages": {"apt": "gitkraken", "dnf": "gitkraken", "pacman": "gitkraken", "flatpak": "com.axosoft.GitKraken"}},
+    "postman":           {"name": "Postman",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "postman", "dnf": "postman", "pacman": "postman-bin", "flatpak": "com.getpostman.Postman"}},
+    "insomnia":          {"name": "Insomnia",            "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "insomnia", "pacman": "insomnia-bin", "flatpak": "rest.insomnia.Insomnia"}},
+    "dbeaver":           {"name": "DBeaver",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "dbeaver-ce", "dnf": "dbeaver-ce", "pacman": "dbeaver", "flatpak": "io.dbeaver.DBeaverCommunity"}},
+    "docker desktop":    {"name": "Docker",              "desc": "Linux'ta yerel destek",
+        "packages": {"apt": "docker.io", "dnf": "docker-ce", "pacman": "docker", "zypper": "docker"}},
+    "git":               {"name": "Git",                 "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "git", "dnf": "git", "pacman": "git", "zypper": "git"}},
+    "node.js":           {"name": "Node.js",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "nodejs", "dnf": "nodejs", "pacman": "nodejs", "zypper": "nodejs"}},
+    "python":            {"name": "Python",              "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "python3", "dnf": "python3", "pacman": "python", "zypper": "python3"}},
+    "wireshark":         {"name": "Wireshark",           "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "wireshark", "dnf": "wireshark", "pacman": "wireshark-qt", "zypper": "wireshark", "flatpak": "org.wireshark.Wireshark"}},
+    "virtualbox":        {"name": "VirtualBox",          "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "virtualbox", "dnf": "VirtualBox", "pacman": "virtualbox", "zypper": "virtualbox", "flatpak": "org.virtualbox.VirtualBox"}},
+    "vmware":            {"name": "VirtualBox / QEMU",   "desc": "Sanallaştırma",
+        "packages": {"apt": "virtualbox", "dnf": "VirtualBox", "pacman": "virtualbox", "zypper": "virtualbox"}},
+    "hyper-v":           {"name": "KVM / QEMU",          "desc": "Linux yerleşik VM",
+        "packages": {"apt": "qemu-kvm", "dnf": "qemu-kvm", "pacman": "qemu", "zypper": "qemu-kvm"}},
+    "xampp":             {"name": "LAMP Stack",          "desc": "Web sunucu paketi",
+        "packages": {"apt": "apache2", "dnf": "httpd", "pacman": "apache"}},
+    "wamp":              {"name": "LAMP Stack",          "desc": "Apache + PHP + MariaDB",
+        "packages": {"apt": "apache2", "dnf": "httpd", "pacman": "apache"}},
+
+    # ── Sistem Araçları ───────────────────────────────────────────────────────
+    "7-zip":             {"name": "p7zip",               "desc": "Arşiv aracı",
+        "packages": {"apt": "p7zip-full", "dnf": "p7zip", "pacman": "p7zip", "zypper": "p7zip"}},
+    "winrar":            {"name": "p7zip",               "desc": "Arşiv aracı",
+        "packages": {"apt": "p7zip-full", "dnf": "p7zip", "pacman": "p7zip", "zypper": "p7zip"}},
+    "ccleaner":          {"name": "BleachBit",           "desc": "Sistem temizleyici",
+        "packages": {"apt": "bleachbit", "dnf": "bleachbit", "pacman": "bleachbit", "zypper": "bleachbit", "flatpak": "org.bleachbit.BleachBit"}},
+    "rainmeter":         {"name": "Conky",               "desc": "Masaüstü widget sistemi",
+        "packages": {"apt": "conky", "dnf": "conky", "pacman": "conky", "zypper": "conky"}},
+    "everything":        {"name": "fd",                  "desc": "Terminal tabanlı arama",
+        "packages": {"apt": "fd-find", "dnf": "fd-find", "pacman": "fd", "zypper": "fd"}},
+    "hwmonitor":         {"name": "Psensor",             "desc": "Donanım izleme",
+        "packages": {"apt": "psensor", "dnf": "psensor", "pacman": "psensor"}},
+    "cpu-z":             {"name": "CPU-X",               "desc": "CPU bilgisi",
+        "packages": {"apt": "cpu-x", "dnf": "cpu-x", "pacman": "cpu-x", "flatpak": "io.github.thetumultuousunicornofdarkness.cpu-x"}},
+    "msi afterburner":   {"name": "CoreCtrl",            "desc": "GPU hız aşırtma",
+        "packages": {"apt": "corectrl", "dnf": "corectrl", "pacman": "corectrl"}},
+    "autohotkey":        {"name": "AutoKey",             "desc": "Tuş makroları",
+        "packages": {"apt": "autokey-gtk", "dnf": "autokey", "pacman": "autokey", "flatpak": "com.github.autokey.AutoKey"}},
+    "process hacker":    {"name": "btop",                "desc": "Sistem süreç yöneticisi",
+        "packages": {"apt": "btop", "dnf": "btop", "pacman": "btop", "zypper": "btop", "flatpak": "io.missioncenter.MissionCenter"}},
+    "task manager":      {"name": "btop",                "desc": "Sistem izleme",
+        "packages": {"apt": "btop", "dnf": "btop", "pacman": "btop", "zypper": "btop"}},
+    "rufus":             {"name": "Ventoy",              "desc": "USB boot aracı",
+        "packages": {"apt": "ventoy", "pacman": "ventoy", "flatpak": "org.gabmus.gfeeds"}},
+    "balena etcher":     {"name": "Etcher",              "desc": "USB yazdırma aracı",
+        "packages": {"apt": "balena-etcher", "dnf": "balena-etcher", "pacman": "balena-etcher-bin", "flatpak": "io.balena.Etcher"}},
+    "crystaldiskinfo":   {"name": "GSmartControl",       "desc": "Disk sağlığı izleyici",
+        "packages": {"apt": "gsmartcontrol", "dnf": "gsmartcontrol", "pacman": "gsmartcontrol", "flatpak": "net.sourceforge.gsmartcontrol"}},
+
+    # ── İletişim ──────────────────────────────────────────────────────────────
+    "discord":           {"name": "Discord",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "discord", "dnf": "discord", "pacman": "discord", "flatpak": "com.discordapp.Discord"}},
+    "slack":             {"name": "Slack",               "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "slack-desktop", "dnf": "slack", "pacman": "slack-desktop", "flatpak": "com.slack.Slack"}},
+    "telegram":          {"name": "Telegram",            "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "telegram-desktop", "dnf": "telegram-desktop", "pacman": "telegram-desktop", "zypper": "telegram-desktop", "flatpak": "org.telegram.desktop"}},
+    "zoom":              {"name": "Zoom",                "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "zoom", "dnf": "zoom", "pacman": "zoom", "flatpak": "us.zoom.Zoom"}},
+    "microsoft teams":   {"name": "MS Teams",            "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "teams", "dnf": "teams", "pacman": "teams", "flatpak": "com.microsoft.Teams"}},
+    "skype":             {"name": "Skype",               "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "skype", "dnf": "skype", "pacman": "skype", "flatpak": "com.skype.Client"}},
+    "whatsapp":          {"name": "Signal",              "desc": "Gizlilik odaklı alternatif",
+        "packages": {"apt": "signal-desktop", "dnf": "signal-desktop", "pacman": "signal-desktop", "flatpak": "org.signal.Signal"}},
+    "signal":            {"name": "Signal",              "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "signal-desktop", "dnf": "signal-desktop", "pacman": "signal-desktop", "flatpak": "org.signal.Signal"}},
+    "element":           {"name": "Element",             "desc": "Matrix istemcisi",
+        "packages": {"apt": "element-desktop", "dnf": "element-desktop", "pacman": "element-desktop", "flatpak": "im.riot.Riot"}},
+
+    # ── Güvenlik & VPN ────────────────────────────────────────────────────────
+    "bitwarden":         {"name": "Bitwarden",           "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "bitwarden", "dnf": "bitwarden", "pacman": "bitwarden", "flatpak": "com.bitwarden.desktop"}},
+    "keepass":           {"name": "KeePassXC",           "desc": "Şifre yöneticisi",
+        "packages": {"apt": "keepassxc", "dnf": "keepassxc", "pacman": "keepassxc", "zypper": "keepassxc", "flatpak": "org.keepassxc.KeePassXC"}},
+    "malwarebytes":      {"name": "ClamAV",              "desc": "Açık kaynak antivirüs",
+        "packages": {"apt": "clamav", "dnf": "clamav", "pacman": "clamav", "zypper": "clamav"}},
+    "nordvpn":           {"name": "NordVPN",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "nordvpn", "dnf": "nordvpn", "pacman": "nordvpn-bin"}},
+    "expressvpn":        {"name": "ProtonVPN",           "desc": "VPN alternatifi",
+        "packages": {"apt": "protonvpn", "dnf": "protonvpn", "pacman": "protonvpn", "flatpak": "com.protonvpn.www"}},
+    "protonvpn":         {"name": "ProtonVPN",           "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "protonvpn", "dnf": "protonvpn", "pacman": "protonvpn", "flatpak": "com.protonvpn.www"}},
+    "mullvad":           {"name": "Mullvad VPN",         "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "mullvad-vpn", "dnf": "mullvad-vpn", "pacman": "mullvad-vpn-bin", "flatpak": "net.mullvad.MullvadVPN"}},
+    "openvpn":           {"name": "OpenVPN",             "desc": "VPN istemcisi",
+        "packages": {"apt": "openvpn", "dnf": "openvpn", "pacman": "openvpn", "zypper": "openvpn"}},
+    "tailscale":         {"name": "Tailscale",           "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "tailscale", "dnf": "tailscale", "pacman": "tailscale"}},
+
+    # ── Uzak Masaüstü & Senkronizasyon ───────────────────────────────────────
+    "teamviewer":        {"name": "RustDesk",            "desc": "Açık kaynak uzak masaüstü",
+        "packages": {"apt": "rustdesk", "dnf": "rustdesk", "pacman": "rustdesk-bin", "flatpak": "com.rustdesk.RustDesk"}},
+    "anydesk":           {"name": "AnyDesk",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "anydesk", "dnf": "anydesk", "pacman": "anydesk-bin", "flatpak": "com.anydesk.Anydesk"}},
+    "rustdesk":          {"name": "RustDesk",            "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "rustdesk", "dnf": "rustdesk", "pacman": "rustdesk-bin", "flatpak": "com.rustdesk.RustDesk"}},
+    "syncthing":         {"name": "Syncthing",           "desc": "Dosya senkronizasyonu",
+        "packages": {"apt": "syncthing", "dnf": "syncthing", "pacman": "syncthing", "zypper": "syncthing", "flatpak": "me.kozec.syncthingtk"}},
+    "onedrive":          {"name": "Nextcloud",           "desc": "Bulut depolama",
+        "packages": {"apt": "nextcloud-desktop", "dnf": "nextcloud-client", "pacman": "nextcloud-client", "flatpak": "com.nextcloud.desktopclient.nextcloud"}},
+    "dropbox":           {"name": "Dropbox",             "desc": "Linux sürümü mevcut",
+        "packages": {"apt": "dropbox", "dnf": "dropbox", "pacman": "dropbox", "flatpak": "com.dropbox.Client"}},
+    "google drive":      {"name": "rclone",              "desc": "Google Drive bağlantısı",
+        "packages": {"apt": "rclone", "dnf": "rclone", "pacman": "rclone", "zypper": "rclone"}},
+    "mega":              {"name": "MEGAsync",            "desc": "Bulut depolama",
+        "packages": {"apt": "megasync", "dnf": "megasync", "pacman": "megasync", "flatpak": "nz.mega.MEGAsync"}},
+
+    # ── Oyun ──────────────────────────────────────────────────────────────────
+    "steam":             {"name": "Steam",               "desc": "Linux'ta çalışır",
+        "packages": {"apt": "steam", "dnf": "steam", "pacman": "steam", "flatpak": "com.valvesoftware.Steam"}},
+    "epic games":        {"name": "Heroic Games Launcher","desc": "Epic & GOG alternatif launcher",
+        "packages": {"apt": "heroic", "dnf": "heroic", "pacman": "heroic-games-launcher-bin", "flatpak": "com.heroicgameslauncher.hgl"}},
+    "gog galaxy":        {"name": "Heroic Games Launcher","desc": "GOG kütüphanesi",
+        "packages": {"apt": "heroic", "dnf": "heroic", "pacman": "heroic-games-launcher-bin", "flatpak": "com.heroicgameslauncher.hgl"}},
+    "battle.net":        {"name": "Lutris",              "desc": "Blizzard oyunları için",
+        "packages": {"apt": "lutris", "dnf": "lutris", "pacman": "lutris", "flatpak": "net.lutris.Lutris"}},
+    "minecraft launcher":{"name": "Prism Launcher",      "desc": "Minecraft launcher",
+        "packages": {"apt": "prismlauncher", "dnf": "prismlauncher", "pacman": "prismlauncher", "flatpak": "org.prismlauncher.PrismLauncher"}},
+    "curseforge":        {"name": "Prism Launcher",      "desc": "Minecraft mod yönetimi",
+        "packages": {"apt": "prismlauncher", "dnf": "prismlauncher", "pacman": "prismlauncher", "flatpak": "org.prismlauncher.PrismLauncher"}},
+    "osu!":              {"name": "osu!lazer",           "desc": "Linux sürümü mevcut",
+        "packages": {"pacman": "osu-lazer-bin", "flatpak": "sh.ppy.osu"}},
+    "roblox":            {"name": "Sober",               "desc": "Native Linux Roblox istemcisi",
+        "packages": {"flatpak": "org.vinegarhq.Sober"}},
+    "retroarch":         {"name": "RetroArch",           "desc": "Emülasyon platformu",
+        "packages": {"apt": "retroarch", "dnf": "retroarch", "pacman": "retroarch", "zypper": "retroarch", "flatpak": "org.libretro.RetroArch"}},
+    "valorant":          {"name": "— Desteklenmiyor",    "desc": "Vanguard kernel-level AC, Linux'ta yok",
+        "packages": {}},
+    "riot vanguard":     {"name": "— Desteklenmiyor",    "desc": "Kernel-level AC, Linux'ta çalışmaz",
+        "packages": {}},
+
+    # ── Not Alma & Verimlilik ─────────────────────────────────────────────────
+    "notion":            {"name": "Notion",              "desc": "Linux istemcisi mevcut",
+        "packages": {"apt": "notion-app", "pacman": "notion-app-electron", "flatpak": "io.github.davidoc.notion"}},
+    "obsidian":          {"name": "Obsidian",            "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "obsidian", "dnf": "obsidian", "pacman": "obsidian", "flatpak": "md.obsidian.Obsidian"}},
+    "joplin":            {"name": "Joplin",              "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "joplin", "pacman": "joplin", "flatpak": "net.cozic.joplin_desktop"}},
+    "anki":              {"name": "Anki",                "desc": "Kart tabanlı öğrenme",
+        "packages": {"apt": "anki", "dnf": "anki", "pacman": "anki", "flatpak": "net.ankiweb.Anki"}},
+    "draw.io":           {"name": "draw.io",             "desc": "Diyagram oluşturucu",
+        "packages": {"flatpak": "com.jgraph.drawio.desktop"}},
+    "amazon kindle":     {"name": "Calibre",             "desc": "E-kitap yöneticisi",
+        "packages": {"apt": "calibre", "dnf": "calibre", "pacman": "calibre", "zypper": "calibre", "flatpak": "com.calibre_ebook.calibre"}},
+    "calibre":           {"name": "Calibre",             "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "calibre", "dnf": "calibre", "pacman": "calibre", "zypper": "calibre", "flatpak": "com.calibre_ebook.calibre"}},
+
+    # ── Mühendislik / CAD ─────────────────────────────────────────────────────
+    "solidworks":        {"name": "FreeCAD",             "desc": "Açık kaynak CAD",
+        "packages": {"apt": "freecad", "dnf": "freecad", "pacman": "freecad", "zypper": "freecad", "flatpak": "org.freecad.FreeCAD"}},
+    "autocad":           {"name": "FreeCAD",             "desc": "2D/3D CAD alternatifi",
+        "packages": {"apt": "freecad", "dnf": "freecad", "pacman": "freecad", "zypper": "freecad", "flatpak": "org.freecad.FreeCAD"}},
+    "fusion 360":        {"name": "FreeCAD",             "desc": "3D modelleme",
+        "packages": {"apt": "freecad", "dnf": "freecad", "pacman": "freecad", "zypper": "freecad", "flatpak": "org.freecad.FreeCAD"}},
+    "matlab":            {"name": "GNU Octave",          "desc": "Matematiksel analiz",
+        "packages": {"apt": "octave", "dnf": "octave", "pacman": "octave", "zypper": "octave", "flatpak": "org.octave.Octave"}},
+
+    # ── Torrent & Dosya Paylaşımı ─────────────────────────────────────────────
+    "qbittorrent":       {"name": "qBittorrent",         "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "qbittorrent", "dnf": "qbittorrent", "pacman": "qbittorrent", "zypper": "qbittorrent", "flatpak": "org.qbittorrent.qBittorrent"}},
+    "utorrent":          {"name": "qBittorrent",         "desc": "Açık kaynak alternatif",
+        "packages": {"apt": "qbittorrent", "dnf": "qbittorrent", "pacman": "qbittorrent", "zypper": "qbittorrent", "flatpak": "org.qbittorrent.qBittorrent"}},
+    "filezilla":         {"name": "FileZilla",           "desc": "Zaten Linux'ta var!",
+        "packages": {"apt": "filezilla", "dnf": "filezilla", "pacman": "filezilla", "zypper": "filezilla", "flatpak": "org.filezilla_project.FileZilla"}},
+    "teracopy":          {"name": "rsync",               "desc": "Hızlı dosya kopyalama",
+        "packages": {"apt": "rsync", "dnf": "rsync", "pacman": "rsync", "zypper": "rsync"}},
+    "winmerge":          {"name": "Meld",                "desc": "Dosya karşılaştırma",
+        "packages": {"apt": "meld", "dnf": "meld", "pacman": "meld", "zypper": "meld", "flatpak": "org.gnome.meld"}},
+
+    # ── Geliştirici Araçları (Runtime/SDK) ───────────────────────────────────
+    "microsoft .net":    {"name": ".NET SDK",            "desc": "Linux .NET desteği tam",
+        "packages": {"apt": "dotnet-sdk-8", "dnf": "dotnet-sdk-8.0", "pacman": "dotnet-sdk-8", "zypper": "dotnet-sdk-8"}},
+    "visual c++":        {"name": "GCC / Clang",         "desc": "Linux derleyici araçları",
+        "packages": {"apt": "build-essential", "dnf": "gcc gcc-c++", "pacman": "base-devel", "zypper": "gcc gcc-c++"}},
+    "java runtime":      {"name": "OpenJDK",             "desc": "Java runtime",
+        "packages": {"apt": "openjdk-21-jdk", "dnf": "java-21-openjdk", "pacman": "jdk-openjdk", "zypper": "java-21-openjdk"}},
+    "golang":            {"name": "Go",                  "desc": "Linux desteği mevcut",
+        "packages": {"apt": "golang", "dnf": "golang", "pacman": "go", "zypper": "go"}},
+    "rust":              {"name": "Rust",                "desc": "Linux desteği mevcut",
+        "packages": {"apt": "rustc", "dnf": "rust", "pacman": "rust", "zypper": "rust"}},
 }
 
 # ── Atlanacak dosya/klasör kalıpları ─────────────────────────────────────────
@@ -253,25 +425,20 @@ _SKIP_PATTERNS = [
     "wptx64", "winrt intellisense", "windows app certification",
     "universal crt", "clickonce bootstrapper", "kits configuration",
     "diagnoticshub", "icecap_collection", "launcher prerequisites",
-    "setup 0.0", "${{",
+    "setup 0.0", "${{"  ,
 ]
 
-# BUG FIX #2: .git ve diğer kilitli/gereksiz klasörler
 SKIP_DIR_NAMES = {
     "Müziğim", "Resimlerim", "Videolarım",
     "My Music", "My Pictures", "My Videos",
     "Application Data", "Local Settings",
-    ".git",          # Git object db — Error 5 verir, donduruyor
-    ".hg",           # Mercurial
-    ".svn",          # SVN
-    "node_modules",  # Gereksiz dev bağımlılıkları
-    "__pycache__",   # Python cache
-    ".venv", "venv", # Python virtualenv
+    ".git", ".hg", ".svn",
+    "node_modules", "__pycache__",
+    ".venv", "venv",
 }
 
-# BUG FIX #1: Döngü tespiti için normalize edilmiş yol karşılaştırması
+
 def _is_subpath(child: Path, parent: Path) -> bool:
-    """child, parent'ın içinde mi? (veya aynı yol mu?)"""
     try:
         child.resolve().relative_to(parent.resolve())
         return True
@@ -279,7 +446,8 @@ def _is_subpath(child: Path, parent: Path) -> bool:
         return False
 
 
-def _match_alternative(prog_name: str) -> tuple | None:
+def _match_alternative(prog_name: str) -> dict | None:
+    """Windows program adını arayıp LINUX_ALTERNATIVES dict döndürür."""
     pl = prog_name.lower().strip()
     if not pl or pl.startswith("${{"):
         return None
@@ -329,7 +497,7 @@ class Win2LinuxApp(ctk.CTk):
         ctk.CTkLabel(logo_frame, text="🐧", font=("Segoe UI", 38)).pack()
         ctk.CTkLabel(logo_frame, text="Win2Linux", font=("Segoe UI", 18, "bold"),
                      text_color=TEXT).pack()
-        ctk.CTkLabel(logo_frame, text="Migrator v2.1", font=("Segoe UI", 12),
+        ctk.CTkLabel(logo_frame, text="Migrator v2.2", font=("Segoe UI", 12),
                      text_color=MUTED).pack()
 
         ctk.CTkFrame(sidebar, height=1, fg_color="#334155").pack(fill="x", padx=16, pady=12)
@@ -350,7 +518,7 @@ class Win2LinuxApp(ctk.CTk):
             btn.pack(fill="x", padx=10, pady=2)
             self._nav_btns[label] = btn
 
-        ctk.CTkLabel(sidebar, text=f"v2.1 · {platform.node()}",
+        ctk.CTkLabel(sidebar, text=f"v2.2 · {platform.node()}",
                      font=("Segoe UI", 10), text_color="#475569").pack(side="bottom", pady=16)
         ctk.CTkButton(
             sidebar, text="🐙  GitHub",
@@ -384,7 +552,7 @@ class Win2LinuxApp(ctk.CTk):
         ctk.CTkFrame(self._content, height=1, fg_color="#1e3a5f").pack(
             fill="x", padx=32, pady=(12, 0))
 
-    # ── Sayfa 1 · Dosyalar ────────────────────────────────────────────────────
+    # ── Sayfa 1 · Dosyalar (değişmedi) ───────────────────────────────────────
     def _show_files(self):
         self._clear_content()
         self._activate_nav("📁  Dosyalar")
@@ -529,7 +697,15 @@ class Win2LinuxApp(ctk.CTk):
         matched = []
         for prog in sorted(unique):
             alt = _match_alternative(prog)
-            matched.append({"name": prog, "alt": list(alt) if alt else None})
+            entry: dict = {"name": prog, "alt": None}
+            if alt:
+                # Yeni JSON yapısı: alt artık dict
+                entry["alt"] = {
+                    "name":     alt["name"],
+                    "desc":     alt["desc"],
+                    "packages": alt["packages"],   # {"apt":..., "dnf":..., "pacman":..., "flatpak":...}
+                }
+            matched.append(entry)
         self._prog_results = matched
         self.after(0, self._scan_done)
 
@@ -565,17 +741,30 @@ class Win2LinuxApp(ctk.CTk):
             ctk.CTkLabel(card, text=prog["name"], font=("Segoe UI", 12),
                          text_color=TEXT, anchor="w").grid(row=0, column=1, sticky="w", pady=10)
             if prog["alt"]:
-                alt_name, alt_pkg, alt_desc = prog["alt"][0], prog["alt"][1], prog["alt"][2]
-                bg = "#0f2b1f" if alt_pkg else "#2d1000"
-                fg = SUCCESS if alt_pkg else DANGER
+                alt = prog["alt"]
+                has_pkgs = bool(alt["packages"])
+                bg = "#0f2b1f" if has_pkgs else "#2d1000"
+                fg = SUCCESS if has_pkgs else DANGER
                 alt_frame = ctk.CTkFrame(card, fg_color=bg, corner_radius=6)
                 alt_frame.grid(row=0, column=2, padx=10, pady=6)
-                ctk.CTkLabel(alt_frame, text=f"🐧 {alt_name}",
+                ctk.CTkLabel(alt_frame, text=f"🐧 {alt['name']}",
                              font=("Segoe UI", 11, "bold"), text_color=fg).pack(padx=10, pady=(4, 0))
-                ctk.CTkLabel(alt_frame, text=alt_desc,
+                ctk.CTkLabel(alt_frame, text=alt["desc"],
                              font=("Segoe UI", 9), text_color=MUTED).pack(padx=10, pady=(0, 4))
+                # Paket yöneticisi etiketleri
+                if alt["packages"]:
+                    pkg_row = ctk.CTkFrame(alt_frame, fg_color="transparent")
+                    pkg_row.pack(padx=10, pady=(0, 4))
+                    for mgr in ["apt", "dnf", "pacman", "flatpak"]:
+                        if mgr in alt["packages"]:
+                            ctk.CTkLabel(pkg_row, text=mgr,
+                                         font=("Segoe UI", 8),
+                                         text_color="#60a5fa",
+                                         fg_color="#1e3a5f",
+                                         corner_radius=4,
+                                         padx=4, pady=1).pack(side="left", padx=2)
 
-    # ── Sayfa 3 · Browser ─────────────────────────────────────────────────────
+    # ── Sayfa 3 · Browser (değişmedi) ─────────────────────────────────────────
     def _show_browser(self):
         self._clear_content()
         self._activate_nav("🌐  Browser Verileri")
@@ -616,17 +805,6 @@ class Win2LinuxApp(ctk.CTk):
                                  font=("Segoe UI", 10), text_color=MUTED).pack(side="right")
                 except:
                     pass
-            ctk.CTkFrame(section, height=1, fg_color="#1e3a5f").pack(fill="x", padx=16)
-            what_frame = ctk.CTkFrame(section, fg_color="transparent")
-            what_frame.pack(fill="x", padx=16, pady=(8, 14))
-            ctk.CTkLabel(what_frame, text="Ne aktar?", font=("Segoe UI", 11),
-                         text_color=MUTED).pack(side="left")
-            for item in ["Yer İmleri", "Geçmiş", "Şifreler*", "Uzantılar"]:
-                ctk.CTkLabel(what_frame, text=f"  ✓ {item}",
-                             font=("Segoe UI", 11), text_color=SUCCESS).pack(side="left")
-        ctk.CTkLabel(scroll,
-                     text="* Şifreler şifrelenmiş şekilde kopyalanır; aynı tarayıcıya aktarılabilir.",
-                     font=("Segoe UI", 10), text_color=MUTED).pack(anchor="w", pady=(8, 0))
 
     def _detect_browsers(self) -> dict:
         result = {}
@@ -654,7 +832,7 @@ class Win2LinuxApp(ctk.CTk):
                 result[browser] = profiles
         return result
 
-    # ── Sayfa 4 · Config ──────────────────────────────────────────────────────
+    # ── Sayfa 4 · Config (değişmedi) ──────────────────────────────────────────
     def _show_config(self):
         self._clear_content()
         self._activate_nav("⚙️  Sistem Config")
@@ -731,7 +909,6 @@ class Win2LinuxApp(ctk.CTk):
         ctk.CTkButton(row, text="Seç", width=60, height=36,
                       command=self._pick_output_dir).pack(side="right")
 
-        # Uyarı etiketi (BUG FIX #1 için görsel uyarı)
         self._loop_warn = ctk.CTkLabel(dir_inner,
             text="", font=("Segoe UI", 10), text_color=DANGER)
         self._loop_warn.pack(anchor="w", pady=(2, 0))
@@ -778,7 +955,6 @@ class Win2LinuxApp(ctk.CTk):
         self._export_btn.pack(fill="x", pady=(12, 0))
 
     def _check_dir_loop(self, *_):
-        """BUG FIX #1: Output dizini, herhangi bir kaynak klasörün içindeyse uyar."""
         out = Path(self._output_dir.get())
         conflicts = []
         for name, var in self._folder_vars.items():
@@ -807,7 +983,6 @@ class Win2LinuxApp(ctk.CTk):
         self._log_box.configure(state="disabled")
 
     def _start_export(self):
-        # BUG FIX #1: Export başlamadan önce son kez döngü kontrolü yap
         out = Path(self._output_dir.get())
         for name, var in self._folder_vars.items():
             if var.get():
@@ -914,6 +1089,21 @@ class Win2LinuxApp(ctk.CTk):
                             self.after(0, lambda n=name: self._log(
                                 f"    ⚠️ Atlandı (kilitli): {n}"))
                 elif kind == "programs":
+                    # ── YENİ JSON YAPISI ──
+                    # Her kayıt:
+                    # {
+                    #   "name": "Discord",
+                    #   "alt": {
+                    #     "name": "Discord",
+                    #     "desc": "Linux sürümü mevcut",
+                    #     "packages": {
+                    #       "apt": "discord",
+                    #       "dnf": "discord",
+                    #       "pacman": "discord",
+                    #       "flatpak": "com.discordapp.Discord"
+                    #     }
+                    #   }
+                    # }
                     Path(dst).parent.mkdir(parents=True, exist_ok=True)
                     with open(dst, "w", encoding="utf-8") as f:
                         json.dump(self._prog_results, f, ensure_ascii=False, indent=2)
@@ -939,22 +1129,6 @@ class Win2LinuxApp(ctk.CTk):
         else:
             self.after(0, lambda p=out_dir: self._log(f"✅ Klasör: {p}"))
 
-        readme = out_base / f"W2L_{timestamp}_README.txt"
-        with open(readme, "w", encoding="utf-8") as f:
-            f.write("Win2Linux Migration Paketi\n")
-            f.write(f"Oluşturulma: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Bilgisayar: {platform.node()}\n\n")
-            f.write("İÇERİK\n------\n")
-            f.write("files/        → Kişisel dosyalar\n")
-            f.write("browser/      → Tarayıcı verileri\n")
-            f.write("config/       → Sistem konfigürasyonları\n")
-            f.write("programs.json → Windows program listesi ve Linux alternatifleri\n\n")
-            f.write("NOT: .git klasörleri, node_modules ve __pycache__ atlandı.\n\n")
-            f.write("Linux'ta nasıl kullanılır?\n")
-            f.write("1. Arşivi aç\n")
-            f.write("2. linux2home.py uygulamasını çalıştır\n")
-            f.write("3. Bu ZIP / klasörü linux2home.py ile aç\n")
-
         self.after(0, lambda: self._log("\n🎉 Export tamamlandı!"))
         self.after(0, lambda: self._progress.set(1.0))
         self.after(0, lambda: self._export_btn.configure(
@@ -962,47 +1136,29 @@ class Win2LinuxApp(ctk.CTk):
         self.after(0, lambda: messagebox.showinfo(
             "Tamamlandı", "Migration paketi başarıyla oluşturuldu!"))
 
-    # ── CORE FIX: safe_copy ───────────────────────────────────────────────────
     @staticmethod
     def _safe_copy(src, dst, out_dir: Path = None):
-        """
-        Klasör kopyalar.
-        BUG FIX #1: out_dir verilmişse, src içinde out_dir'e giden yol varsa atlar.
-        BUG FIX #2: SKIP_DIR_NAMES'teki klasörleri (.git, node_modules vb.) atlar.
-        FEATURE:    Kopyalanamayan klasörü önce zip'lemeyi dener, o da olmazsa atlar.
-        """
         src_path = Path(src)
-
         try:
             if src_path.is_symlink():
                 return
-
             if src_path.is_dir():
-                # BUG FIX #1: döngü kontrolü
                 if out_dir and _is_subpath(src_path, out_dir):
                     return
-
-                # BUG FIX #2: kilitli/gereksiz klasör adı kontrolü
                 if src_path.name in SKIP_DIR_NAMES:
                     return
-
                 os.makedirs(dst, exist_ok=True)
-
                 for item in src_path.iterdir():
                     if item.is_symlink():
                         continue
-                    # BUG FIX #2: alt klasör adı kontrolü
                     if item.name in SKIP_DIR_NAMES:
                         continue
-                    # BUG FIX #1: alt öğe döngü kontrolü
                     if out_dir and _is_subpath(item, out_dir):
                         continue
-
                     child_dst = Path(dst) / item.name
                     try:
                         Win2LinuxApp._safe_copy(str(item), str(child_dst), out_dir)
                     except PermissionError:
-                        # FEATURE: zip fallback — klasör kopyalanamadıysa zip'le
                         if item.is_dir():
                             try:
                                 zip_dst = Path(dst) / f"{item.name}_backup.zip"
@@ -1013,12 +1169,11 @@ class Win2LinuxApp(ctk.CTk):
                                             try:
                                                 zf.write(f, f.relative_to(item))
                                             except (PermissionError, OSError):
-                                                pass  # kilitli dosyayı atla
-                                # Boş zip oluştuysa sil
+                                                pass
                                 if zip_dst.stat().st_size < 22:
                                     zip_dst.unlink()
                             except Exception:
-                                pass  # zip de olmadı, sessizce geç
+                                pass
                     except OSError:
                         pass
             else:
@@ -1027,11 +1182,9 @@ class Win2LinuxApp(ctk.CTk):
                     shutil.copy2(src, dst)
                 except (PermissionError, OSError):
                     pass
-
         except Exception:
             pass
 
-    # ── Yardımcılar ───────────────────────────────────────────────────────────
     @staticmethod
     def _human(n: int) -> str:
         for unit in ["B", "KB", "MB", "GB"]:
