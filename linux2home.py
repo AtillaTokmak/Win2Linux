@@ -528,27 +528,90 @@ class Linux2HomeApp(ctk.CTk):
                          text_color=TEXT, anchor="w").grid(
                 row=0, column=1, sticky="w", pady=10)
 
-            if alt:
-                alt_name, alt_pkg, alt_desc = alt[0], alt[1], alt[2]
-                alt_f = ctk.CTkFrame(card, fg_color="#0d2b0d", corner_radius=6)
-                alt_f.grid(row=0, column=2, padx=10, pady=6)
-                ctk.CTkLabel(alt_f, text=f"🐧 {alt_name}",
-                             font=(FONT_UI, 10, "bold"),
-                             text_color=SUCCESS).pack(padx=10, pady=(4, 0))
-                ctk.CTkLabel(alt_f, text=f"$ {self._pkg_mgr} install {alt_pkg}",
-                             font=(FONT_MONO, 10), text_color=LINUX).pack(padx=10)
-                ctk.CTkLabel(alt_f, text=alt_desc,
-                             font=(FONT_UI, 8), text_color=MUTED).pack(padx=10, pady=(0, 4))
+        if alt:
+            alt_name = alt.get("name", "Unknown")
+            alt_desc = alt.get("desc", "Açıklama yok")
+            packages = alt.get("packages", {})
+
+            pkg_name = packages.get(self._pkg_mgr)
+
+            if not pkg_name and self._use_flatpak.get():
+                pkg_name = packages.get("flatpak")
+
+            alt_f = ctk.CTkFrame(card, fg_color="#0d2b0d", corner_radius=6)
+            alt_f.grid(row=0, column=2, padx=10, pady=6)
+
+            ctk.CTkLabel(
+                alt_f,
+                text=f"🐧 {alt_name}",
+                font=(FONT_UI, 10, "bold"),
+                text_color=SUCCESS
+            ).pack(padx=10, pady=(4, 0))
+
+            if pkg_name:
+                if pkg_name.startswith(("org.", "com.", "io.", "net.", "app.")):
+                    install_text = f"$ flatpak install flathub {pkg_name}"
+                else:
+                    install_text = f"$ {self._pkg_mgr} install {pkg_name}"
+
+                ctk.CTkLabel(
+                    alt_f,
+                    text=install_text,
+                    font=(FONT_MONO, 10),
+                    text_color=LINUX
+                ).pack(padx=10)
+
+            ctk.CTkLabel(
+                alt_f,
+                text=alt_desc,
+                font=(FONT_UI, 8),
+                text_color=MUTED
+            ).pack(padx=10, pady=(0, 4))
+
+            # Paket yöneticisi rozetleri
+            if packages:
+                pkg_row = ctk.CTkFrame(alt_f, fg_color="transparent")
+                pkg_row.pack(padx=10, pady=(0, 4))
+
+                for mgr in packages.keys():
+                    ctk.CTkLabel(
+                        pkg_row,
+                        text=mgr,
+                        font=(FONT_UI, 8),
+                        text_color="#60a5fa",
+                        fg_color="#1e3a5f",
+                        corner_radius=4,
+                        padx=4,
+                        pady=1
+                    ).pack(side="left", padx=2)
 
     def _build_install_cmd(self, matched_progs) -> str:
         pkgs = set()
+
         for p in matched_progs:
             alt = p.get("alt")
-            if alt and len(alt) > 1:
-                pkgs.add(alt[1])
+
+            if not alt:
+                continue
+
+            packages = alt.get("packages", {})
+
+            pkg = packages.get(self._pkg_mgr)
+
+            if not pkg and self._use_flatpak.get():
+                pkg = packages.get("flatpak")
+
+            if pkg and not pkg.startswith(("org.", "com.", "io.", "net.")):
+                pkgs.add(pkg)
+
         if not pkgs:
             return ""
-        mgr_cmd = PKG_MANAGERS.get(self._pkg_mgr, "sudo apt install -y")
+
+        mgr_cmd = PKG_MANAGERS.get(
+            self._pkg_mgr,
+            "sudo apt install -y"
+        )
+
         return f"{mgr_cmd} {' '.join(sorted(pkgs))}"
 
     # ── Sayfa 3 · Browser ─────────────────────────────────────────────────────
@@ -1135,14 +1198,18 @@ class Linux2HomeApp(ctk.CTk):
         ids = []
         seen = set()
         for p in matched_progs:
-            alt = p.get("alt") or []
-            pkg = alt[1] if len(alt) > 1 else ""
-            fid = flathub.get(pkg)
-            if fid and fid not in seen:
-                ids.append(fid)
-                seen.add(fid)
-        if not ids:
-            return ""
+            alt = p.get("alt")
+
+            if not alt:
+                continue
+
+            packages = alt.get("packages", {})
+
+            flatpak_id = packages.get("flatpak")
+
+            if flatpak_id and flatpak_id not in seen:
+                seen.add(flatpak_id)
+                ids.append(flatpak_id)
         return "flatpak install -y flathub " + " ".join(sorted(ids))
 
     # ── Yardımcılar ───────────────────────────────────────────────────────────
