@@ -1,314 +1,112 @@
-# Win2Linux Migrator 🐧➡️🏠
+ # 🐧 Win2Linux Migration Tool
 
-Modern GUI-based migration toolkit for moving from Windows to Linux with minimal setup and maximum convenience.
+ ## 📌 Genel Tanım
 
-This project consists of two applications:
+ Bu proje, Windows kullanıcılarının Linux ortamına geçerken bilgisayarlarını ve uygulamalarını daha kolay taşıyabilmelerini sağlayacak bir araçtır. Sistem dosyalarını, uygulama 
+ paketlerini, ortam değişkenlerini ve çok daha fazlasını otomatik olarak tanımlar ve kullanıcıya uygun kurulum komutlarını sunar.
 
-* **Win2Linux Migrator** → Creates a migration/export package on Windows
-* **Linux2Home Importer** → Imports and restores the package on Linux
+ > **Not:** Bu projenin ana amacı Windows’tan Linux’a geçiş sürecinin kolaylaştırılmasıdır. Ancak bu araç, sadece bir rehber/yardımcıdır. Tüm kurulumlar kullanıcı tarafından 
+ kontrol edilmelidir.
 
----
-# 🖼️ Screenshots
-Windows Enviroment:
-![Windows](https://i.hizliresim.com/dqfm3ih.png)
-Linux Enviroment:
-![linux](https://i.hizliresim.com/adzvddn.png)
-# ✨ Features
+ ---
 
-## 📁 File Migration
+ ## 🚀 Özellikler
 
-Transfer your important folders easily:
+ - 🔍 Otomatik sistem tespiti ve paket keşfi (`linux2home.py`)
+ - 🧰 Yeni paketler için destek eklenebilirliği
+ - 🖥️ Yeni kurulum komutları (örnek: Flatpak, Homebrew
+ - 💻 Terminalde komut çalıştırma desteği (komut kopyalama ve terminal üzerinden çalıştırma)
+ - 🔧 Ayar dosyalarını (config) yedekleme desteği
+ - 📂 Dosya içeriklerini analiz etme (özellikle `.desktop` dosyaları, `~/.config/`, vb.)
+ - 🌐 Sistem ve dağıtım bilgisi gösterimi
 
-* Desktop
-* Documents
-* Downloads
-* Music
-* Pictures
-* Videos
-* Custom folders
+ ---
 
----
+ ## 🛠️ Kullanı
 
-## 📦 Installed Program Detection
+ ### `win2linux.py`
+ Bu betik, Windows’un altında çalışır. Sisteminizi analiz eder ve Linux’a geçiş sırasında hangi uygulamaların kurulması gerektiğini belirler.bash
+ python win2linux.py
+ Bu işlem sonucunda bir komut dosyası oluşturulur ve kullanıcının seçimine göre `linux2home.py` ile kullanılabilir hale getirilir. Sistem analizleri, kullanıcı tercihleri ve 
+ kurulum komutları kullanıcıya gösterilir.
 
-Automatically scans installed Windows applications and suggests Linux alternatives.
+ ### `linux2home.py`
+ Bu betik, Linux ortamında çalışır. Windows’tan gelen analiz verisine göre uygulama kurulumlarını ve sistem ayarlarını gösterir. Kullanıcıya otomatik komutların üretimi ve doğrudan
+  terminal üzerinden çalıştırılması imkanı sunar.bash
+ python linux2home.py
+ ---
 
-Examples:
+ ## 🧪 Örnek Senaryo
 
-* Microsoft Office → LibreOffice
-* Photoshop → GIMP
-* Visual Studio → VS Code / JetBrains
-* Discord → Discord
-* Steam → Steam
+ ### 1. Windows'ta `win2linux.py` çalıştırılır
 
-Also generates ready-to-use Linux package manager install commands.
+ Yazılımlar, yapılandırmalar, kullanıcı tercihleri ve sistem bilgileri analiz edilir. Bu veriler JSON formatında saklanır (örneğin: `env_vars.json`, `config_info.json`).
 
----
+ ### 2. Linux'ta `linux2home.py` çalıştırılır
 
-## 🌐 Browser Migration
+ Bu betik, `win2linux.py` tarafından üretilen dosyalarla birlikte çalışarak:
 
-Supports browser profile importing for:
+ - Kurulum komutlarını üretir (ör: `apt install discord`, `flatpak install com.discordapp.Discord`)
+ - Ortam değişkenlerini tanımlar (ör: `.bashrc`, `.zshrc`)
+ - Uygulama yapılandırması (örneğin: Firefox, VS Code) hakkında bilgiler verir
+ - Uygulamaların klasör içerikleri analiz edilir
 
-* Google Chrome
-* Firefox
-* Microsoft Edge
-* Brave
+ ### 3. Terminal üzerinden kurulum komutu çalıştırılır
 
-Transfer:
+ Kullanıcıya terminalde çalıştırılacak komutlar gösterilir ve doğrudan çalıştırılabilir veya kopyalanabilir hale getirilir.
 
-* bookmarks
-* profiles
-* user data
-* browser settings
+ ---
 
----
+ ## 📝 Yeni Özellikler
 
-## ⚙️ System Configuration Migration
+ ### ⚙️ Yeni Komutlar
+ Bu proje, `linux2home.py` üzerinden yeni kurulum komutları da üretmektedir:
 
-Move important configs including:
+ | Platform | Paket Yöneticisi | Örnek Komut |
+ |----------|------------------|-------------|
+ | Debian/Ubuntu | `apt` | `sudo apt install discord` |
+ | Fedora/CentOS | `dnf` | `sudo dnf install discord` |
+ | Arch Linux | `pacman` | `sudo pacman -S discord` |
+ | Flatpak | `flatpak` | `flatpak install flathub com.discordapp.Discord` |
 
-* `.ssh`
-* `.gitconfig`
-* VSCode settings
-* environment variables
-* hosts file
+ ### 🧠 Uzantılar ve Desteklenen Paketler
 
----
+ Yeni paket türleri eklemek oldukça kolaydır:python
+ win2linux.py dosyasında örnek:
+ packages = {
+     "discord": {"apt": "discord", "flatpak": "com.discordapp.Discord"},
+     ...
+ }
+ ### 📦 Yeni Dosya Analizleri
 
-## 🐧 Linux Package Manager Support
+ - `.desktop` dosyaları okunarak uygulama bilgileri çıkarılır
+ - `~/.config/`, `~/.local/share/`, `~/.cache/` klasörleri analiz edilir
 
-Automatically detects:
+ ---
 
-* apt
-* dnf
-* pacman
-* zypper
-* flatpak
+ ## 🧰 Gereksinimler
 
----
+ - Python 3.7+
+ - `tkinter` (GUI desteği)
+ - GNU/Linux dağıtımında `bash`, `flatpak`, ve tercihe göre `apt/dnf/pacman`
 
-# 🖼️ Interface
+ ---
 
-Modern dark-themed GUI built with CustomTkinter.
+ ## 🧾 Lisans
 
-Features:
+ Tüm bu proje, açık kaynaklıdır. Lisans bilgileri için `LICENSE` dosyasına bakınız.
 
-* Sidebar navigation
-* Scrollable views
-* Modern card UI
-* Package summary
-* Installation command generator
-* Status indicators
-* Multi-page workflow
+ ---
 
----
+ ## ✅ Katkıda Bulunmak
 
-# 📦 Project Structure
+ Bug veya yeni özellik önerileri için GitHub Issues bölümünü kullanabilirsiniz. Pull Request’lerinizi memnuniyetle karşılıyoruz!
 
-```text id="9z8g1l"
-project/
-│
-├── win2linux.py      # Windows exporter
-├── linux2home.py     # Linux importer
-│
-└── generated_package/
-    ├── files/
-    ├── browser/
-    ├── config/
-    └── programs.json
-```
+ ---
 
----
+ ## 💬 Notlar
 
-# 🚀 Installation
+ Bu proje, Windows’tan Linux’a geçiş sürecinde kullanıcı dostu bir deneyim sunmayı hedeflemektedir. Her sistemin özel durumları olduğundan kullanıcıların doğrudan müdahale ederek 
+ kontrolü elinde tutması önerilir.
 
-## Requirements
-
-* Python 3.10+
-* pip
-
-## Install Dependencies
-
-```bash id="3czg2m"
-pip install customtkinter psutil
-```
-
----
-
-# 🪟 Windows Side
-
-## Run
-
-```bash id="h1v90j"
-python win2linux.py
-```
-
-## What It Can Do
-
-✅ Select files and folders
-✅ Scan installed applications
-✅ Suggest Linux alternatives
-✅ Export browser data
-✅ Export system configs
-✅ Create ZIP migration package
-
----
-
-# 🐧 Linux Side
-
-## Run
-
-```bash id="4kj6np"
-python linux2home.py
-```
-
-## What It Can Do
-
-✅ Open migration ZIP package
-✅ Restore files into home directory
-✅ Import browser profiles
-✅ Apply system configurations
-✅ Generate Linux install commands
-
----
-
-# 📦 Example Workflow
-
-## 1️⃣ Create Export Package on Windows
-
-```bash id="0b9u7w"
-python win2linux.py
-```
-
-Generated output:
-
-```text id="70lm0d"
-W2L_Migration/
-└── W2L_2026-05-08.zip
-```
-
----
-
-## 2️⃣ Transfer ZIP to Linux
-
-Move it using:
-
-* USB drive
-* local network
-* cloud storage
-
----
-
-## 3️⃣ Import on Linux
-
-```bash id="kg8lzp"
-python linux2home.py
-```
-
-Select the ZIP package and start migration.
-
----
-
-# 🧠 Smart Program Matching
-
-The application scans Windows registry entries and intelligently matches Linux alternatives.
-
-Example:
-
-```python id="q8jqn7"
-"photoshop" -> ("GIMP", "gimp", "Powerful image editor")
-```
-
-Supports:
-
-* Office tools
-* Browsers
-* IDEs
-* Gaming launchers
-* VPN clients
-* Security software
-* Media tools
-* CAD software
-* Development tools
-* System utilities
-
-Includes 100+ application mappings.
-
----
-
-# 🔐 Privacy & Security
-
-* Fully local operation
-* No cloud upload
-* No telemetry
-* Offline migration supported
-* ZIP packages transferred manually
-
----
-
-# 🛠️ Technologies Used
-
-* Python
-* CustomTkinter
-* Tkinter
-* pathlib
-* threading
-* shutil
-* zipfile
-* Windows Registry API (`winreg`)
-
----
-
-# 📌 Supported Platforms
-
-| Platform   | Supported |
-| ---------- | --------- |
-| Windows 10 | ✅         |
-| Windows 11 | ✅         |
-| Ubuntu     | ✅         |
-| Fedora     | ✅         |
-| Arch Linux | ✅         |
-| openSUSE   | ✅         |
-
----
-
-# ⚠️ Notes
-
-* Some Windows applications may not have Linux alternatives
-* Certain anti-cheat games may not work on Linux
-* Browser importing requires the target browser to be installed
-
----
-
-# 🔮 Future Plans
-
-* Wine/Proton integration
-* Automatic Flatpak fallback
-* Migration profiles
-* Cloud sync
-* Delta migration
-* Package verification system
-* Multi-user support
-* AppImage export support
-
----
-
-# 🤝 Contributing
-
-Pull requests and suggestions are welcome.
-
-```bash id="0xksw0"
-git clone <repo>
-```
-
----
-
-# 📜 License
-
-MIT License
-
----
-
-# 👨‍💻 Developer
-
-[Atilla Tokmak GitHub](https://github.com/AtillaTokmak?utm_source=chatgpt.com)
+ ---
