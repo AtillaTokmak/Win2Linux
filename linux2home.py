@@ -41,6 +41,7 @@ FONT_MONO    = "DejaVu Sans Mono"
 FONT_DISPLAY = "DejaVu Sans"
 
 # ── Klasör haritası (Windows → Linux) ────────────────────────────────────────
+# ── Klasör haritası (Windows → Linux) ────────────────────────────────────────
 FOLDER_MAP = {
     "Masaüstü":     str(Path.home() / "Desktop"),
     "Belgeler":     str(Path.home() / "Documents"),
@@ -59,11 +60,255 @@ PKG_MANAGERS = {
     "flatpak":"flatpak install -y flathub",
 }
 
-def detect_pkg_manager() -> str:
-    for mgr in ["apt", "dnf", "pacman", "zypper"]:
+def detect_distro_info() -> tuple[str, str]:
+    """
+    Linux dağıtım adını ve varsayılan paket yöneticisini tespit eder.
+    Örn: ("Fedora Linux 44", "dnf"), ("Ubuntu 24.04 LTS", "apt"), ("Arch Linux", "pacman")
+    """
+    distro_name = "Linux"
+    pkg_mgr = "apt"
+
+    os_release = Path("/etc/os-release")
+    if os_release.exists():
+        try:
+            info = {}
+            with open(os_release, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        info[k] = v.strip('"\'')
+            distro_name = info.get("PRETTY_NAME", info.get("NAME", "Linux"))
+        except Exception:
+            pass
+    else:
+        distro_name = platform.system() + " " + platform.release()
+
+    for mgr in ["apt", "dnf", "pacman", "zypper", "apk", "xbps-query"]:
         if shutil.which(mgr):
-            return mgr
-    return "apt"
+            pkg_mgr = mgr
+            break
+
+    return distro_name, pkg_mgr
+
+def detect_pkg_manager() -> str:
+    _, mgr = detect_distro_info()
+    return mgr
+
+def get_xdg_user_dirs() -> dict[str, Path]:
+    """
+    Sistemdeki XDG kullanıcı dizinlerini (Masaüstü, Belgeler, Müzikler, vb.) dinamik tespit eder.
+    xdg-user-dir komutunu ve ~/.config/user-dirs.dirs dosyasını kontrol eder.
+    """
+    xdg_map = {}
+    xdg_keys = ["DESKTOP", "DOCUMENTS", "DOWNLOAD", "MUSIC", "PICTURES", "VIDEOS"]
+
+    for key in xdg_keys:
+        try:
+            res = subprocess.run(["xdg-user-dir", key], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                p = Path(res.stdout.strip())
+                if p != Path.home():
+                    xdg_map[key] = p
+        except Exception:
+            pass
+
+    user_dirs_file = Path.home() / ".config" / "user-dirs.dirs"
+    if user_dirs_file.exists():
+        try:
+            with open(user_dirs_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("XDG_") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.replace("XDG_", "").replace("_DIR", "")
+                        v = v.strip('"\'').replace("$HOME", str(Path.home()))
+                        if k in xdg_keys and k not in xdg_map:
+                            xdg_map[k] = Path(v)
+        except Exception:
+            pass
+
+    fallbacks = {
+        "MUSIC": ["Müzikler", "Müzik", "Music", "Musics"],
+        "DOCUMENTS": ["Belgeler", "Documents"],
+        "DESKTOP": ["Masaüstü", "Desktop"],
+        "DOWNLOAD": ["İndirilenler", "Downloads"],
+        "PICTURES": ["Resimler", "Pictures"],
+        "VIDEOS": ["Videolar", "Videos"],
+    }
+    for key, candidates in fallbacks.items():
+        if key not in xdg_map:
+            for cand in candidates:
+                cand_path = Path.home() / cand
+                if cand_path.exists():
+                    xdg_map[key] = cand_path
+                    break
+            if key not in xdg_map:
+                xdg_map[key] = Path.home() / candidates[0]
+
+    return xdg_map
+
+def resolve_linux_user_dir(folder_name: str, xdg_map: dict[str, Path] = None) -> str:
+    """
+    Yedeklenen klasör adını (örn: "Musics", "Music", "Müzik", "Belgeler")
+    Linux sistemindeki XDG yerelleştirilmiş klasör yoluna (örn: ~/Müzikler) dinamik eşler.
+    """
+    if xdg_map is None:
+        xdg_map = get_xdg_user_dirs()
+
+    norm = folder_name.strip().lower()
+
+    if norm in ["müzik", "müzikler", "music", "musics", "my music", "my_music", "müziklerim"]:
+        return str(xdg_map.get("MUSIC", Path.home() / "Müzikler"))
+
+    if norm in ["belgeler", "belge", "documents", "document", "docs", "my documents", "my_documents", "belgelerim"]:
+        return str(xdg_map.get("DOCUMENTS", Path.home() / "Belgeler"))
+
+    if norm in ["masaüstü", "masaustu", "desktop"]:
+        return str(xdg_map.get("DESKTOP", Path.home() / "Masaüstü"))
+
+    if norm in ["indirilenler", "indirmeler", "downloads", "download", "indirilen"]:
+        return str(xdg_map.get("DOWNLOAD", Path.home() / "İndirilenler"))
+
+    if norm in ["resimler", "resim", "pictures", "picture", "photos", "my pictures", "my_pictures", "resimlerim"]:
+        return str(xdg_map.get("PICTURES", Path.home() / "Resimler"))
+
+    if norm in ["videolar", "video", "videos", "movies", "my videos", "my_videos", "videolarım"]:
+        return str(xdg_map.get("VIDEOS", Path.home() / "Videolar"))
+
+    return str(Path.home() / folder_name)
+
+def register_firefox_profile(target_firefox_dir: Path, profile_folder_name: str) -> bool:
+    """
+    Firefox profili içe aktarıldığında profiles.ini dosyasını günceller/oluşturur.
+    Linux'ta Firefox açıldığında aktarılan profili tanır.
+    """
+    try:
+        target_firefox_dir.mkdir(parents=True, exist_ok=True)
+        profiles_ini = target_firefox_dir / "profiles.ini"
+
+        lines = []
+        if profiles_ini.exists():
+            with open(profiles_ini, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+
+        content = "".join(lines)
+        if f"Path={profile_folder_name}" in content:
+            return True
+
+        profile_indices = []
+        for line in lines:
+            line_str = line.strip()
+            if line_str.startswith("[Profile") and line_str.endswith("]"):
+                try:
+                    idx = int(line_str[8:-1])
+                    profile_indices.append(idx)
+                except ValueError:
+                    pass
+
+        next_idx = max(profile_indices) + 1 if profile_indices else 0
+
+        new_section = [
+            f"\n[Profile{next_idx}]\n",
+            f"Name=Win2Linux-{profile_folder_name}\n",
+            f"IsRelative=1\n",
+            f"Path={profile_folder_name}\n",
+        ]
+
+        if not profile_indices:
+            new_section.append("Default=1\n")
+            if "[General]" not in content:
+                new_section = ["[General]\nStartWithLastProfile=1\nVersion=2\n"] + new_section
+
+        with open(profiles_ini, "a", encoding="utf-8") as f:
+            f.writelines(new_section)
+        return True
+    except Exception as e:
+        print(f"Firefox profiles.ini hatası: {e}")
+        return False
+
+def query_repo_package_exists(pkg_name: str, pkg_mgr: str) -> bool:
+    """
+    Paketin dağıtım deposunda mevcut ve kurulabilir olup olmadığını sorgular.
+    """
+    if not pkg_name:
+        return False
+
+    try:
+        if pkg_mgr == "apt":
+            res = subprocess.run(["apt-cache", "show", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0 and len(res.stdout.strip()) > 0 and "No package" not in res.stdout
+        elif pkg_mgr == "dnf":
+            res = subprocess.run(["dnf", "info", "--quiet", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0 and len(res.stdout.strip()) > 0 and "No match" not in res.stdout and "Eşleşme yok" not in res.stdout
+        elif pkg_mgr == "pacman":
+            res = subprocess.run(["pacman", "-Si", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0
+        elif pkg_mgr == "zypper":
+            res = subprocess.run(["zypper", "info", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0
+        elif pkg_mgr == "flatpak":
+            res = subprocess.run(["flatpak", "info", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0
+    except Exception:
+        pass
+
+    return False
+
+def search_repo_for_program(query: str, pkg_mgr: str) -> list[str]:
+    """
+    Dağıtım depolarında arama yapıp eşleşen paket adlarını bulur.
+    """
+    results = []
+    if not query:
+        return results
+
+    q_clean = query.lower().replace(" ", "-")
+
+    try:
+        if pkg_mgr == "apt":
+            res = subprocess.run(["apt-cache", "search", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines()[:10]:
+                    parts = line.split(" - ", 1)
+                    if parts:
+                        results.append(parts[0].strip())
+        elif pkg_mgr == "dnf":
+            res = subprocess.run(["dnf", "search", "--quiet", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    line = line.strip()
+                    if line and ":" not in line and not line.startswith("=") and not line.lower().startswith("eşleşen") and not line.lower().startswith("matched"):
+                        pkg = line.split()[0].split(".")[0]
+                        if pkg and pkg not in results:
+                            results.append(pkg)
+        elif pkg_mgr == "pacman":
+            res = subprocess.run(["pacman", "-Ss", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if line.startswith("core/") or line.startswith("extra/") or line.startswith("multilib/"):
+                        pkg = line.split()[0].split("/")[1]
+                        results.append(pkg)
+        elif pkg_mgr == "flatpak":
+            res = subprocess.run(["flatpak", "search", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines()[1:10]:
+                    parts = line.split("\t")
+                    if len(parts) >= 2:
+                        results.append(parts[1].strip())
+    except Exception:
+        pass
+
+    return results
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Ana uygulama
@@ -82,7 +327,10 @@ class Linux2HomeApp(ctk.CTk):
         self._folder_vars  : dict[str, tk.BooleanVar] = {}
         self._browser_vars : dict[str, tk.BooleanVar] = {}
         self._config_vars  : dict[str, tk.BooleanVar] = {}
-        self._pkg_mgr      = detect_pkg_manager()
+        self._distro_name, self._pkg_mgr = detect_distro_info()
+        self._xdg_user_dirs = get_xdg_user_dirs()
+        self._repo_query_cache: dict[str, bool] = {}
+        self._verified_pkgs: dict[str, str] = {}
         self._dry_run      = tk.BooleanVar(value=False)
         self._use_flatpak  = tk.BooleanVar(value=bool(shutil.which("flatpak")))
         self._install_log_lines: list[str] = []
@@ -376,8 +624,8 @@ class Linux2HomeApp(ctk.CTk):
                 row += 1
 
             name = src_folder.name
-            # Hedef klasörü bul
-            linux_dst = FOLDER_MAP.get(name, str(Path.home() / name))
+            # Yerelleştirilmiş XDG Hedef klasörünü bul (örn: Musics -> ~/Müzikler)
+            linux_dst = resolve_linux_user_dir(name, self._xdg_user_dirs)
 
             try:
                 size = sum(f.stat().st_size for f in src_folder.rglob("*") if f.is_file())
@@ -443,10 +691,26 @@ class Linux2HomeApp(ctk.CTk):
         scroll = ctk.CTkScrollableFrame(self._content, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=32, pady=16)
 
+        # Dağıtım ve Paket Yöneticisi Bilgi Kartı
+        distro_frame = ctk.CTkFrame(scroll, fg_color="#122538", corner_radius=10)
+        distro_frame.pack(fill="x", pady=(0, 12))
+        distro_inner = ctk.CTkFrame(distro_frame, fg_color="transparent")
+        distro_inner.pack(fill="x", padx=16, pady=10)
+
+        ctk.CTkLabel(distro_inner,
+                     text=f"🐧 Tespit Edilen Dağıtım: {self._distro_name}   |   📦 Depo Yöneticisi: {self._pkg_mgr.upper()}",
+                     font=(FONT_UI, 11, "bold"), text_color=SUCCESS).pack(side="left")
+
+        query_btn = ctk.CTkButton(distro_inner, text="🔍 Dağıtım Depolarında Sorgula",
+                                  command=lambda: self._query_repo_packages(prog_list_frame, cmd_box_ref),
+                                  fg_color=ACCENT, hover_color=ACCENT2,
+                                  font=(FONT_UI, 10, "bold"), text_color="white", height=28)
+        query_btn.pack(side="right")
+
         # İstatistikler
         matched = [p for p in self._programs if p.get("alt")]
         stats = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10)
-        stats.pack(fill="x", pady=(0, 16))
+        stats.pack(fill="x", pady=(0, 12))
         stat_inner = ctk.CTkFrame(stats, fg_color="transparent")
         stat_inner.pack(fill="x", padx=16, pady=12)
 
@@ -464,7 +728,8 @@ class Linux2HomeApp(ctk.CTk):
             ctk.CTkLabel(col, text=label, font=(FONT_UI, 9),
                          text_color=MUTED).pack()
 
-        # Toplu kur butonu
+        # Toplu kur komut kutusu
+        cmd_box_ref = {}
         install_cmd = self._build_install_cmd([p for p in matched if p.get("alt")])
         if install_cmd:
             cmd_frame = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10)
@@ -479,17 +744,18 @@ class Linux2HomeApp(ctk.CTk):
             cmd_box.pack(fill="x", pady=(4, 0))
             cmd_box.insert("end", install_cmd)
             cmd_box.configure(state="disabled")
+            cmd_box_ref["box"] = cmd_box
+
             btn_row = ctk.CTkFrame(cmd_inner, fg_color="transparent")
             btn_row.pack(anchor="w", pady=(6, 0))
             ctk.CTkButton(btn_row, text="📋  Komutu Kopyala",
-                          command=lambda c=install_cmd: self._copy_to_clipboard(c),
+                          command=lambda: self._copy_to_clipboard(cmd_box.get("1.0", "end-1c")),
                           fg_color=BG_CARD2, hover_color=ACCENT,
                           text_color=TEXT, height=32).pack(side="left")
             term = self._detect_terminal()
             ctk.CTkButton(btn_row,
-                text=("⚡  Terminalde Çalıştır" if term
-                      else "⚡  Terminal bulunamadı"),
-                command=lambda c=install_cmd: self._run_in_terminal(c),
+                text=("⚡  Terminalde Çalıştır" if term else "⚡  Terminal bulunamadı"),
+                command=lambda: self._run_in_terminal(cmd_box.get("1.0", "end-1c")),
                 state=("normal" if term else "disabled"),
                 fg_color=ACCENT, hover_color=ACCENT2,
                 font=(FONT_UI, 11, "bold"),
@@ -508,6 +774,41 @@ class Linux2HomeApp(ctk.CTk):
         prog_list_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         prog_list_frame.pack(fill="x")
         self._refresh_prog_list(prog_list_frame)
+
+    def _query_repo_packages(self, container, cmd_box_ref):
+        """
+        Dağıtımın depolarına doğrudan sorgu atarak paket mevcudiyetini kontrol eder ve günceller.
+        """
+        def worker():
+            for prog in self._programs:
+                alt = prog.get("alt")
+                if not alt:
+                    continue
+                packages = alt.get("packages", {})
+                cand_pkg = packages.get(self._pkg_mgr)
+
+                if cand_pkg and query_repo_package_exists(cand_pkg, self._pkg_mgr):
+                    self._verified_pkgs[prog["name"]] = cand_pkg
+                else:
+                    query_term = alt.get("name", prog["name"])
+                    found_pkgs = search_repo_for_program(query_term, self._pkg_mgr)
+                    if found_pkgs:
+                        self._verified_pkgs[prog["name"]] = found_pkgs[0]
+                    elif packages.get("flatpak"):
+                        self._verified_pkgs[prog["name"]] = packages["flatpak"]
+
+            self.after(0, lambda: self._refresh_prog_list(container))
+            if "box" in cmd_box_ref:
+                new_cmd = self._build_install_cmd([p for p in self._programs if p.get("alt")])
+                self.after(0, lambda c=new_cmd: self._update_cmd_box(cmd_box_ref["box"], c))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _update_cmd_box(self, box, text):
+        box.configure(state="normal")
+        box.delete("1.0", "end")
+        box.insert("end", text)
+        box.configure(state="disabled")
 
     def _refresh_prog_list(self, container):
         for w in container.winfo_children():
@@ -528,62 +829,73 @@ class Linux2HomeApp(ctk.CTk):
                          text_color=TEXT, anchor="w").grid(
                 row=0, column=1, sticky="w", pady=10)
 
-        if alt:
-            alt_name = alt.get("name", "Unknown")
-            alt_desc = alt.get("desc", "Açıklama yok")
-            packages = alt.get("packages", {})
+            if alt:
+                alt_name = alt.get("name", "Unknown")
+                alt_desc = alt.get("desc", "Açıklama yok")
+                packages = alt.get("packages", {})
 
-            pkg_name = packages.get(self._pkg_mgr)
+                pkg_name = self._verified_pkgs.get(prog["name"]) or packages.get(self._pkg_mgr)
 
-            if not pkg_name and self._use_flatpak.get():
-                pkg_name = packages.get("flatpak")
+                if not pkg_name and self._use_flatpak.get():
+                    pkg_name = packages.get("flatpak")
 
-            alt_f = ctk.CTkFrame(card, fg_color="#0d2b0d", corner_radius=6)
-            alt_f.grid(row=0, column=2, padx=10, pady=6)
-
-            ctk.CTkLabel(
-                alt_f,
-                text=f"🐧 {alt_name}",
-                font=(FONT_UI, 10, "bold"),
-                text_color=SUCCESS
-            ).pack(padx=10, pady=(4, 0))
-
-            if pkg_name:
-                if pkg_name.startswith(("org.", "com.", "io.", "net.", "app.")):
-                    install_text = f"$ flatpak install flathub {pkg_name}"
-                else:
-                    install_text = f"$ {self._pkg_mgr} install {pkg_name}"
+                alt_f = ctk.CTkFrame(card, fg_color="#0d2b0d", corner_radius=6)
+                alt_f.grid(row=0, column=2, padx=10, pady=6)
 
                 ctk.CTkLabel(
                     alt_f,
-                    text=install_text,
-                    font=(FONT_MONO, 10),
-                    text_color=LINUX
-                ).pack(padx=10)
+                    text=f"🐧 {alt_name}",
+                    font=(FONT_UI, 10, "bold"),
+                    text_color=SUCCESS
+                ).pack(padx=10, pady=(4, 0))
 
-            ctk.CTkLabel(
-                alt_f,
-                text=alt_desc,
-                font=(FONT_UI, 8),
-                text_color=MUTED
-            ).pack(padx=10, pady=(0, 4))
+                if pkg_name:
+                    if pkg_name.startswith(("org.", "com.", "io.", "net.", "app.")):
+                        install_text = f"$ flatpak install flathub {pkg_name}"
+                    else:
+                        install_text = f"$ {self._pkg_mgr} install {pkg_name}"
 
-            # Paket yöneticisi rozetleri
-            if packages:
-                pkg_row = ctk.CTkFrame(alt_f, fg_color="transparent")
-                pkg_row.pack(padx=10, pady=(0, 4))
-
-                for mgr in packages.keys():
                     ctk.CTkLabel(
-                        pkg_row,
-                        text=mgr,
-                        font=(FONT_UI, 8),
-                        text_color="#60a5fa",
-                        fg_color="#1e3a5f",
-                        corner_radius=4,
-                        padx=4,
-                        pady=1
-                    ).pack(side="left", padx=2)
+                        alt_f,
+                        text=install_text,
+                        font=(FONT_MONO, 10),
+                        text_color=LINUX
+                    ).pack(padx=10)
+
+                ctk.CTkLabel(
+                    alt_f,
+                    text=alt_desc,
+                    font=(FONT_UI, 8),
+                    text_color=MUTED
+                ).pack(padx=10, pady=(0, 4))
+
+                if packages or prog["name"] in self._verified_pkgs:
+                    pkg_row = ctk.CTkFrame(alt_f, fg_color="transparent")
+                    pkg_row.pack(padx=10, pady=(0, 4))
+
+                    if prog["name"] in self._verified_pkgs:
+                        ctk.CTkLabel(
+                            pkg_row,
+                            text="✓ Depoda Doğrulandı",
+                            font=(FONT_UI, 8, "bold"),
+                            text_color="#4ade80",
+                            fg_color="#14532d",
+                            corner_radius=4,
+                            padx=4,
+                            pady=1
+                        ).pack(side="left", padx=2)
+                    else:
+                        for mgr in packages.keys():
+                            ctk.CTkLabel(
+                                pkg_row,
+                                text=mgr,
+                                font=(FONT_UI, 8),
+                                text_color="#60a5fa",
+                                fg_color="#1e3a5f",
+                                corner_radius=4,
+                                padx=4,
+                                pady=1
+                            ).pack(side="left", padx=2)
 
     def _build_install_cmd(self, matched_progs) -> str:
         pkgs = set()
@@ -595,8 +907,7 @@ class Linux2HomeApp(ctk.CTk):
                 continue
 
             packages = alt.get("packages", {})
-
-            pkg = packages.get(self._pkg_mgr)
+            pkg = self._verified_pkgs.get(p["name"]) or packages.get(self._pkg_mgr)
 
             if not pkg and self._use_flatpak.get():
                 pkg = packages.get("flatpak")
@@ -946,6 +1257,9 @@ class Linux2HomeApp(ctk.CTk):
                     elif os.path.isfile(src):
                         dst_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(src, dst_path)
+                    if kind == "browser" and "Firefox" in name:
+                        register_firefox_profile(dst_path.parent, dst_path.name)
+                        self.after(0, lambda: self._log("    🦊 Firefox profili profiles.ini dosyasına kaydedildi"))
                     self.after(0, lambda n=name: self._log(f"    ✅ {n} kopyalandı"))
                     ok_count += 1
 

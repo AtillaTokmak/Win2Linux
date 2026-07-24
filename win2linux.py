@@ -821,9 +821,14 @@ class Win2LinuxApp(ctk.CTk):
                 continue
             profiles = {}
             if browser == "Firefox":
-                for entry in os.scandir(base):
-                    if entry.is_dir():
-                        profiles[entry.name] = entry.path
+                ff_bases = [base, os.path.join(roaming, "Mozilla", "Firefox")]
+                for ff_base in ff_bases:
+                    if os.path.exists(ff_base):
+                        for entry in os.scandir(ff_base):
+                            if entry.is_dir() and entry.name not in ("Crash Reports", "Pending Pings", "Profiles"):
+                                has_profile_files = any((Path(entry.path) / f).exists() for f in ["places.sqlite", "prefs.js", "logins.json", "key4.db"])
+                                if has_profile_files or ".default" in entry.name:
+                                    profiles[entry.name] = entry.path
             else:
                 for entry in os.scandir(base):
                     if entry.is_dir() and (entry.name.startswith("Profile") or entry.name == "Default"):
