@@ -34,7 +34,6 @@
  Bu betik, Linux ortamında çalışır. Windows’tan gelen analiz verisine göre uygulama kurulumlarını ve sistem ayarlarını gösterir. Kullanıcıya otomatik komutların üretimi ve doğrudan
   terminal üzerinden çalıştırılması imkanı sunar. 
  
-
 ```
  python linux2home.py
  ```
