@@ -14,6 +14,7 @@ import shutil
 import zipfile
 import threading
 import subprocess
+import re
 import winreg
 import platform
 from pathlib import Path
@@ -446,17 +447,63 @@ def _is_subpath(child: Path, parent: Path) -> bool:
         return False
 
 
+# Modül yüklenirken bir kez hazırlanır; her eşleştirme çağrısında yeniden
+# sıralama ve regex derleme yapılmaz.
+_SORTED_KEYS = sorted(LINUX_ALTERNATIVES.keys(), key=len, reverse=True)
+_KEY_PATTERNS = {
+    kw: re.compile(r'(?<![a-z0-9])' + re.escape(kw) + r'(?![a-z0-9])')
+    for kw in _SORTED_KEYS
+}
+
+# Gündelik İngilizce kelimelerden oluşan anahtarlar tek başına fazla yanlış
+# pozitif üretebilir. Bunlar marka önekiyle veya ürün adının son anlamlı
+# kelimesi olarak geçtiğinde kabul edilir.
+_BRAND_PREFIXES = ("microsoft ", "ms ", "adobe ", "corel ")
+_GENERIC_SINGLE_WORD_KEYS = {
+    kw for kw in ("word", "access", "project", "publisher", "paint")
+    if kw in LINUX_ALTERNATIVES
+}
+
+# Ürün adının sonundaki yaygın yıl, sürüm, mimari ve sürüm-edisyon ekleri.
+_TRAILING_NOISE = re.compile(
+    r'^(20[12]\d|v?\d+(\.\d+)*|x86|x64|32-?bit|64-?bit|edition|professional|pro|home|standard)$'
+)
+
+
+def _last_meaningful_word(words: list[str]) -> str:
+    for word in reversed(words):
+        cleaned = word.strip("()[]{}.,;:_-")
+        if cleaned and not _TRAILING_NOISE.fullmatch(cleaned):
+            return cleaned
+    return ""
+
+
 def _match_alternative(prog_name: str) -> dict | None:
-    """Windows program adını arayıp LINUX_ALTERNATIVES dict döndürür."""
+    """Windows program adına karşılık gelen Linux alternatifini döndürür.
+
+    Kelime sınırı kullanıldığı için ``word`` anahtarı ``Microsoft Word`` ile
+    eşleşir; ``WordPad``, ``Keyword Manager`` ve ``Crossword Solver`` ile
+    eşleşmez. Genel tek kelimelik anahtarlar için ek bağlam kontrolü uygulanır.
+    """
     pl = prog_name.lower().strip()
     if not pl or pl.startswith("${{"):
         return None
+
     for skip in _SKIP_PATTERNS:
         if skip in pl:
             return None
-    for kw in sorted(LINUX_ALTERNATIVES.keys(), key=len, reverse=True):
-        if kw in pl:
-            return LINUX_ALTERNATIVES[kw]
+
+    words = pl.split()
+    last_word = _last_meaningful_word(words)
+    has_brand = pl.startswith(_BRAND_PREFIXES)
+
+    for kw in _SORTED_KEYS:
+        if not _KEY_PATTERNS[kw].search(pl):
+            continue
+        if kw in _GENERIC_SINGLE_WORD_KEYS and not has_brand and kw != last_word:
+            continue
+        return LINUX_ALTERNATIVES[kw]
+
     return None
 
 
