@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 """
-Win2Linux Migrator — v2.2
-Windows'tan Linux'a geçiş için kapsamlı GUI aracı
+Linux2Home - Win2Linux Migration Importer
+Win2Linux Migrator ile oluşturulan paketi Linux'a yerleştiren araç
 Gereksinim: pip install customtkinter psutil
 """
 
@@ -14,522 +15,325 @@ import shutil
 import zipfile
 import threading
 import subprocess
-import re
-import winreg
 import platform
 from pathlib import Path
 from datetime import datetime
 
 # ── Tema ──────────────────────────────────────────────────────────────────────
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("green")
 
-ACCENT   = "#3B82F6"
-ACCENT2  = "#6366F1"
-BG_DARK  = "#0F172A"
-BG_CARD  = "#1E293B"
-BG_CARD2 = "#273549"
-TEXT     = "#F1F5F9"
+ACCENT   = "#22C55E"
+ACCENT2  = "#16A34A"
+BG_DARK  = "#0A1628"
+BG_CARD  = "#0F2537"
+BG_CARD2 = "#162d42"
+TEXT     = "#F0FDF4"
 MUTED    = "#94A3B8"
-SUCCESS  = "#22C55E"
-WARNING  = "#F59E0B"
-DANGER   = "#EF4444"
+SUCCESS  = "#4ADE80"
+WARNING  = "#FCD34D"
+DANGER   = "#F87171"
+LINUX    = "#F97316"
 
-# ── Linux alternatifleri veritabanı ──────────────────────────────────────────
-# Yapı: "windows_anahtar": {
-#     "name":     "Linux uygulama adı (görüntüleme için)",
-#     "desc":     "Açıklama",
-#     "packages": {
-#         "apt":     "paket-adi",       # Debian/Ubuntu
-#         "dnf":     "paket-adi",       # Fedora/RHEL
-#         "pacman":  "paket-adi",       # Arch/Manjaro
-#         "zypper":  "paket-adi",       # openSUSE
-#         "flatpak": "org.app.Id",      # Flathub (evrensel)
-#     }
-# }
-# Bir paket yöneticisinde yoksa o anahtar girilmez.
-# "packages" boşsa (desteklenmiyor), dict boş bırakılır.
+# Typography. Tk falls back to a default sans/mono if the named family is missing.
+FONT_UI      = "DejaVu Sans"
+FONT_MONO    = "DejaVu Sans Mono"
+FONT_DISPLAY = "DejaVu Sans"
 
-LINUX_ALTERNATIVES = {
-    # ── Ofis ──────────────────────────────────────────────────────────────────
-    "microsoft office":  {"name": "LibreOffice",         "desc": "Tam uyumlu ofis paketi",
-        "packages": {"apt": "libreoffice", "dnf": "libreoffice", "pacman": "libreoffice-fresh", "zypper": "libreoffice", "flatpak": "org.libreoffice.LibreOffice"}},
-    "ms office":         {"name": "LibreOffice",         "desc": "Tam uyumlu ofis paketi",
-        "packages": {"apt": "libreoffice", "dnf": "libreoffice", "pacman": "libreoffice-fresh", "zypper": "libreoffice", "flatpak": "org.libreoffice.LibreOffice"}},
-    "word":              {"name": "LibreOffice Writer",  "desc": "Word belgelerini açar",
-        "packages": {"apt": "libreoffice-writer", "dnf": "libreoffice-writer", "pacman": "libreoffice-fresh", "zypper": "libreoffice-writer", "flatpak": "org.libreoffice.LibreOffice"}},
-    "excel":             {"name": "LibreOffice Calc",    "desc": "Excel dosyalarını açar",
-        "packages": {"apt": "libreoffice-calc", "dnf": "libreoffice-calc", "pacman": "libreoffice-fresh", "zypper": "libreoffice-calc", "flatpak": "org.libreoffice.LibreOffice"}},
-    "powerpoint":        {"name": "LibreOffice Impress", "desc": "Sunum uygulaması",
-        "packages": {"apt": "libreoffice-impress", "dnf": "libreoffice-impress", "pacman": "libreoffice-fresh", "zypper": "libreoffice-impress", "flatpak": "org.libreoffice.LibreOffice"}},
-    "onenote":           {"name": "Obsidian",            "desc": "Markdown tabanlı not",
-        "packages": {"apt": "obsidian", "dnf": "obsidian", "pacman": "obsidian", "flatpak": "md.obsidian.Obsidian"}},
-    "outlook":           {"name": "Thunderbird",         "desc": "E-posta istemcisi",
-        "packages": {"apt": "thunderbird", "dnf": "thunderbird", "pacman": "thunderbird", "zypper": "thunderbird", "flatpak": "org.mozilla.Thunderbird"}},
-    "publisher":         {"name": "Scribus",             "desc": "Masaüstü yayıncılık",
-        "packages": {"apt": "scribus", "dnf": "scribus", "pacman": "scribus", "zypper": "scribus", "flatpak": "net.scribus.Scribus"}},
-    "visio":             {"name": "Dia",                 "desc": "Diyagram aracı",
-        "packages": {"apt": "dia", "dnf": "dia", "pacman": "dia", "zypper": "dia"}},
-    "project":           {"name": "ProjectLibre",        "desc": "Proje yönetimi",
-        "packages": {"apt": "projectlibre", "flatpak": "com.projectlibre.ProjectLibre"}},
-    "microsoft project": {"name": "ProjectLibre",        "desc": "Proje yönetimi",
-        "packages": {"apt": "projectlibre", "flatpak": "com.projectlibre.ProjectLibre"}},
-    "access":            {"name": "LibreOffice Base",    "desc": "Veritabanı yönetimi",
-        "packages": {"apt": "libreoffice-base", "dnf": "libreoffice-base", "pacman": "libreoffice-fresh", "zypper": "libreoffice-base"}},
-    "libreoffice":       {"name": "LibreOffice",         "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "libreoffice", "dnf": "libreoffice", "pacman": "libreoffice-fresh", "zypper": "libreoffice", "flatpak": "org.libreoffice.LibreOffice"}},
-
-    # ── Tarayıcılar ────────────────────────────────────────────────────────────
-    "google chrome":     {"name": "Chromium",            "desc": "Açık kaynak Chrome tabanlı tarayıcı",
-        "packages": {"apt": "chromium-browser", "dnf": "chromium", "pacman": "chromium", "zypper": "chromium", "flatpak": "org.chromium.Chromium"}},
-    "microsoft edge":    {"name": "Firefox",             "desc": "Gizlilik odaklı tarayıcı",
-        "packages": {"apt": "firefox", "dnf": "firefox", "pacman": "firefox", "zypper": "firefox", "flatpak": "org.mozilla.firefox"}},
-    "opera":             {"name": "Vivaldi",             "desc": "Özelleştirilebilir tarayıcı",
-        "packages": {"apt": "vivaldi-stable", "dnf": "vivaldi-stable", "pacman": "vivaldi", "flatpak": "com.vivaldi.Vivaldi"}},
-    "opera gx":          {"name": "Vivaldi",             "desc": "Özelleştirilebilir tarayıcı",
-        "packages": {"apt": "vivaldi-stable", "dnf": "vivaldi-stable", "pacman": "vivaldi", "flatpak": "com.vivaldi.Vivaldi"}},
-    "firefox":           {"name": "Firefox",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "firefox", "dnf": "firefox", "pacman": "firefox", "zypper": "firefox", "flatpak": "org.mozilla.firefox"}},
-    "brave":             {"name": "Brave",               "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "brave-browser", "dnf": "brave-browser", "pacman": "brave-bin", "flatpak": "com.brave.Browser"}},
-    "vivaldi":           {"name": "Vivaldi",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "vivaldi-stable", "dnf": "vivaldi-stable", "pacman": "vivaldi", "flatpak": "com.vivaldi.Vivaldi"}},
-    "chromium":          {"name": "Chromium",            "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "chromium-browser", "dnf": "chromium", "pacman": "chromium", "zypper": "chromium", "flatpak": "org.chromium.Chromium"}},
-    "tor browser":       {"name": "Tor Browser",         "desc": "Anonimlik tarayıcısı",
-        "packages": {"apt": "torbrowser-launcher", "dnf": "torbrowser-launcher", "pacman": "torbrowser-launcher", "flatpak": "com.github.micahflee.torbrowser-launcher"}},
-    "arc browser":       {"name": "Zen Browser",         "desc": "Modern sekmeli deneyim",
-        "packages": {"flatpak": "io.github.zen_browser.zen"}},
-
-    # ── Medya ──────────────────────────────────────────────────────────────────
-    "vlc":               {"name": "VLC",                 "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "vlc", "dnf": "vlc", "pacman": "vlc", "zypper": "vlc", "flatpak": "org.videolan.VLC"}},
-    "spotify":           {"name": "Spotify",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "spotify-client", "pacman": "spotify", "flatpak": "com.spotify.Client"}},
-    "apple music":       {"name": "Cider",               "desc": "Apple Music istemcisi",
-        "packages": {"flatpak": "sh.cider.Cider"}},
-    "itunes":            {"name": "Rhythmbox",           "desc": "Müzik çalar",
-        "packages": {"apt": "rhythmbox", "dnf": "rhythmbox", "pacman": "rhythmbox", "zypper": "rhythmbox", "flatpak": "org.gnome.Rhythmbox3"}},
-    "windows media":     {"name": "VLC",                 "desc": "Evrensel medya oynatıcı",
-        "packages": {"apt": "vlc", "dnf": "vlc", "pacman": "vlc", "zypper": "vlc", "flatpak": "org.videolan.VLC"}},
-    "foobar":            {"name": "DeaDBeeF",            "desc": "Hafif müzik çalar",
-        "packages": {"apt": "deadbeef", "dnf": "deadbeef", "pacman": "deadbeef", "flatpak": "io.gitlab.deadbeef_player.DeaDBeeF"}},
-    "musicbee":          {"name": "Rhythmbox",           "desc": "Müzik yöneticisi",
-        "packages": {"apt": "rhythmbox", "dnf": "rhythmbox", "pacman": "rhythmbox", "flatpak": "org.gnome.Rhythmbox3"}},
-    "potplayer":         {"name": "mpv",                 "desc": "Video oynatıcı",
-        "packages": {"apt": "mpv", "dnf": "mpv", "pacman": "mpv", "zypper": "mpv", "flatpak": "io.mpv.Mpv"}},
-    "mpc-hc":            {"name": "mpv",                 "desc": "Hafif video oynatıcı",
-        "packages": {"apt": "mpv", "dnf": "mpv", "pacman": "mpv", "zypper": "mpv", "flatpak": "io.mpv.Mpv"}},
-    "mpv":               {"name": "mpv",                 "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "mpv", "dnf": "mpv", "pacman": "mpv", "zypper": "mpv", "flatpak": "io.mpv.Mpv"}},
-    "kodi":              {"name": "Kodi",                "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "kodi", "dnf": "kodi", "pacman": "kodi", "flatpak": "tv.kodi.Kodi"}},
-    "plex":              {"name": "Jellyfin",            "desc": "Medya sunucusu",
-        "packages": {"apt": "jellyfin", "dnf": "jellyfin", "flatpak": "com.github.iwalton3.jellyfin-media-player"}},
-
-    # ── Ses Üretim ────────────────────────────────────────────────────────────
-    "audacity":          {"name": "Audacity",            "desc": "Ses düzenleyici",
-        "packages": {"apt": "audacity", "dnf": "audacity", "pacman": "audacity", "zypper": "audacity", "flatpak": "org.audacityteam.Audacity"}},
-    "fl studio":         {"name": "LMMS",                "desc": "Beat yapım aracı",
-        "packages": {"apt": "lmms", "dnf": "lmms", "pacman": "lmms", "zypper": "lmms", "flatpak": "io.lmms.LMMS"}},
-    "cubase":            {"name": "Ardour",              "desc": "DAW alternatifi",
-        "packages": {"apt": "ardour", "dnf": "ardour", "pacman": "ardour", "flatpak": "org.ardour.Ardour"}},
-    "reaper":            {"name": "REAPER",              "desc": "Linux sürümü mevcut (manuel kurulum)",
-        "packages": {}},
-    "ableton":           {"name": "Bitwig Studio",       "desc": "Müzik prodüksiyonu",
-        "packages": {"flatpak": "com.bitwig.BitwigStudio"}},
-
-    # ── Video Kayıt / Yayın ───────────────────────────────────────────────────
-    "obs studio":        {"name": "OBS Studio",          "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "obs-studio", "dnf": "obs-studio", "pacman": "obs-studio", "zypper": "obs-studio", "flatpak": "com.obsproject.Studio"}},
-    "obs":               {"name": "OBS Studio",          "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "obs-studio", "dnf": "obs-studio", "pacman": "obs-studio", "zypper": "obs-studio", "flatpak": "com.obsproject.Studio"}},
-    "bandicam":          {"name": "OBS Studio",          "desc": "Ekran kayıt aracı",
-        "packages": {"apt": "obs-studio", "dnf": "obs-studio", "pacman": "obs-studio", "flatpak": "com.obsproject.Studio"}},
-    "camtasia":          {"name": "Kdenlive",            "desc": "Video kayıt & düzenleme",
-        "packages": {"apt": "kdenlive", "dnf": "kdenlive", "pacman": "kdenlive", "zypper": "kdenlive", "flatpak": "org.kde.kdenlive"}},
-
-    # ── Grafik & Tasarım ──────────────────────────────────────────────────────
-    "adobe photoshop":   {"name": "GIMP",                "desc": "Güçlü görsel editör",
-        "packages": {"apt": "gimp", "dnf": "gimp", "pacman": "gimp", "zypper": "gimp", "flatpak": "org.gimp.GIMP"}},
-    "photoshop":         {"name": "GIMP",                "desc": "Güçlü görsel editör",
-        "packages": {"apt": "gimp", "dnf": "gimp", "pacman": "gimp", "zypper": "gimp", "flatpak": "org.gimp.GIMP"}},
-    "adobe illustrator": {"name": "Inkscape",            "desc": "Vektör grafik editörü",
-        "packages": {"apt": "inkscape", "dnf": "inkscape", "pacman": "inkscape", "zypper": "inkscape", "flatpak": "org.inkscape.Inkscape"}},
-    "illustrator":       {"name": "Inkscape",            "desc": "Vektör grafik editörü",
-        "packages": {"apt": "inkscape", "dnf": "inkscape", "pacman": "inkscape", "zypper": "inkscape", "flatpak": "org.inkscape.Inkscape"}},
-    "adobe premiere":    {"name": "Kdenlive",            "desc": "Video editörü",
-        "packages": {"apt": "kdenlive", "dnf": "kdenlive", "pacman": "kdenlive", "zypper": "kdenlive", "flatpak": "org.kde.kdenlive"}},
-    "premiere":          {"name": "Kdenlive",            "desc": "Video editörü",
-        "packages": {"apt": "kdenlive", "dnf": "kdenlive", "pacman": "kdenlive", "zypper": "kdenlive", "flatpak": "org.kde.kdenlive"}},
-    "after effects":     {"name": "Natron",              "desc": "Efekt & kompozisyon",
-        "packages": {"apt": "natron", "dnf": "natron", "pacman": "natron", "flatpak": "fr.natron.Natron"}},
-    "cinema 4d":         {"name": "Blender",             "desc": "3D modelleme",
-        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
-    "maya":              {"name": "Blender",             "desc": "3D animasyon",
-        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
-    "zbrush":            {"name": "Blender Sculpt",      "desc": "Dijital heykel",
-        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
-    "paint tool sai":    {"name": "Krita",               "desc": "Dijital çizim",
-        "packages": {"apt": "krita", "dnf": "krita", "pacman": "krita", "zypper": "krita", "flatpak": "org.kde.krita"}},
-    "clip studio paint": {"name": "Krita",               "desc": "Manga & çizim",
-        "packages": {"apt": "krita", "dnf": "krita", "pacman": "krita", "zypper": "krita", "flatpak": "org.kde.krita"}},
-    "paint.net":         {"name": "Pinta",               "desc": "Basit görsel editör",
-        "packages": {"apt": "pinta", "dnf": "pinta", "pacman": "pinta", "flatpak": "com.github.PintaProject.Pinta"}},
-    "adobe xd":          {"name": "Penpot",              "desc": "UI/UX tasarım aracı (web)",
-        "packages": {"flatpak": "design.penpot.Penpot"}},
-    "lightroom":         {"name": "Darktable",           "desc": "Fotoğraf düzenleme",
-        "packages": {"apt": "darktable", "dnf": "darktable", "pacman": "darktable", "zypper": "darktable", "flatpak": "org.darktable.Darktable"}},
-    "adobe lightroom":   {"name": "Darktable",           "desc": "RAW fotoğraf işleme",
-        "packages": {"apt": "darktable", "dnf": "darktable", "pacman": "darktable", "zypper": "darktable", "flatpak": "org.darktable.Darktable"}},
-    "adobe acrobat":     {"name": "Okular",              "desc": "PDF okuyucu & editör",
-        "packages": {"apt": "okular", "dnf": "okular", "pacman": "okular", "zypper": "okular", "flatpak": "org.kde.okular"}},
-    "acrobat":           {"name": "Okular",              "desc": "PDF okuyucu",
-        "packages": {"apt": "okular", "dnf": "okular", "pacman": "okular", "zypper": "okular", "flatpak": "org.kde.okular"}},
-    "figma":             {"name": "Figma",               "desc": "Linux sürümü mevcut",
-        "packages": {"flatpak": "io.github.Figma_Linux.figma_linux"}},
-    "blender":           {"name": "Blender",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "blender", "dnf": "blender", "pacman": "blender", "zypper": "blender", "flatpak": "org.blender.Blender"}},
-    "inkscape":          {"name": "Inkscape",            "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "inkscape", "dnf": "inkscape", "pacman": "inkscape", "zypper": "inkscape", "flatpak": "org.inkscape.Inkscape"}},
-    "gimp":              {"name": "GIMP",                "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "gimp", "dnf": "gimp", "pacman": "gimp", "zypper": "gimp", "flatpak": "org.gimp.GIMP"}},
-    "krita":             {"name": "Krita",               "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "krita", "dnf": "krita", "pacman": "krita", "zypper": "krita", "flatpak": "org.kde.krita"}},
-    "darktable":         {"name": "Darktable",           "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "darktable", "dnf": "darktable", "pacman": "darktable", "zypper": "darktable", "flatpak": "org.darktable.Darktable"}},
-
-    # ── Geliştirme Ortamları ──────────────────────────────────────────────────
-    "visual studio code":{"name": "VS Code",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "code", "dnf": "code", "pacman": "code", "zypper": "code", "flatpak": "com.visualstudio.code"}},
-    "visual studio":     {"name": "VS Code",             "desc": "IDE alternatifi",
-        "packages": {"apt": "code", "dnf": "code", "pacman": "code", "flatpak": "com.visualstudio.code"}},
-    "notepad++":         {"name": "Kate",                "desc": "Güçlü metin editörü",
-        "packages": {"apt": "kate", "dnf": "kate", "pacman": "kate", "zypper": "kate", "flatpak": "org.kde.kate"}},
-    "sublime text":      {"name": "Kate",                "desc": "Metin editörü",
-        "packages": {"apt": "kate", "dnf": "kate", "pacman": "kate", "zypper": "kate", "flatpak": "org.kde.kate"}},
-    "atom":              {"name": "VS Code",             "desc": "Modern editör",
-        "packages": {"apt": "code", "dnf": "code", "pacman": "code", "flatpak": "com.visualstudio.code"}},
-    "intellij":          {"name": "IntelliJ IDEA",       "desc": "Linux sürümü mevcut",
-        "packages": {"pacman": "intellij-idea-community-edition", "flatpak": "com.jetbrains.IntelliJ-IDEA-Community"}},
-    "pycharm":           {"name": "PyCharm",             "desc": "Linux sürümü mevcut",
-        "packages": {"pacman": "pycharm-community", "flatpak": "com.jetbrains.PyCharm-Community"}},
-    "rider":             {"name": "JetBrains Rider",     "desc": "C# IDE",
-        "packages": {"flatpak": "com.jetbrains.Rider"}},
-    "android studio":    {"name": "Android Studio",      "desc": "Linux sürümü mevcut",
-        "packages": {"pacman": "android-studio", "flatpak": "com.google.AndroidStudio"}},
-    "eclipse":           {"name": "Eclipse",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "eclipse", "dnf": "eclipse", "pacman": "eclipse-java", "flatpak": "org.eclipse.Java"}},
-    "arduino":           {"name": "Arduino IDE",         "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "arduino", "dnf": "arduino", "pacman": "arduino", "flatpak": "cc.arduino.IDE2"}},
-    "putty":             {"name": "OpenSSH (built-in)",  "desc": "Linux'ta yerleşik",
-        "packages": {"apt": "openssh-client", "dnf": "openssh-clients", "pacman": "openssh", "zypper": "openssh"}},
-    "winscp":            {"name": "FileZilla",           "desc": "Dosya aktarımı",
-        "packages": {"apt": "filezilla", "dnf": "filezilla", "pacman": "filezilla", "zypper": "filezilla", "flatpak": "org.filezilla_project.FileZilla"}},
-    "github desktop":    {"name": "GitHub Desktop",      "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "github-desktop", "pacman": "github-desktop-bin", "flatpak": "io.github.shiftey.Desktop"}},
-    "gitkraken":         {"name": "GitKraken",           "desc": "Git GUI istemcisi",
-        "packages": {"apt": "gitkraken", "dnf": "gitkraken", "pacman": "gitkraken", "flatpak": "com.axosoft.GitKraken"}},
-    "postman":           {"name": "Postman",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "postman", "dnf": "postman", "pacman": "postman-bin", "flatpak": "com.getpostman.Postman"}},
-    "insomnia":          {"name": "Insomnia",            "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "insomnia", "pacman": "insomnia-bin", "flatpak": "rest.insomnia.Insomnia"}},
-    "dbeaver":           {"name": "DBeaver",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "dbeaver-ce", "dnf": "dbeaver-ce", "pacman": "dbeaver", "flatpak": "io.dbeaver.DBeaverCommunity"}},
-    "docker desktop":    {"name": "Docker",              "desc": "Linux'ta yerel destek",
-        "packages": {"apt": "docker.io", "dnf": "docker-ce", "pacman": "docker", "zypper": "docker"}},
-    "git":               {"name": "Git",                 "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "git", "dnf": "git", "pacman": "git", "zypper": "git"}},
-    "node.js":           {"name": "Node.js",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "nodejs", "dnf": "nodejs", "pacman": "nodejs", "zypper": "nodejs"}},
-    "python":            {"name": "Python",              "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "python3", "dnf": "python3", "pacman": "python", "zypper": "python3"}},
-    "wireshark":         {"name": "Wireshark",           "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "wireshark", "dnf": "wireshark", "pacman": "wireshark-qt", "zypper": "wireshark", "flatpak": "org.wireshark.Wireshark"}},
-    "virtualbox":        {"name": "VirtualBox",          "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "virtualbox", "dnf": "VirtualBox", "pacman": "virtualbox", "zypper": "virtualbox", "flatpak": "org.virtualbox.VirtualBox"}},
-    "vmware":            {"name": "VirtualBox / QEMU",   "desc": "Sanallaştırma",
-        "packages": {"apt": "virtualbox", "dnf": "VirtualBox", "pacman": "virtualbox", "zypper": "virtualbox"}},
-    "hyper-v":           {"name": "KVM / QEMU",          "desc": "Linux yerleşik VM",
-        "packages": {"apt": "qemu-kvm", "dnf": "qemu-kvm", "pacman": "qemu", "zypper": "qemu-kvm"}},
-    "xampp":             {"name": "LAMP Stack",          "desc": "Web sunucu paketi",
-        "packages": {"apt": "apache2", "dnf": "httpd", "pacman": "apache"}},
-    "wamp":              {"name": "LAMP Stack",          "desc": "Apache + PHP + MariaDB",
-        "packages": {"apt": "apache2", "dnf": "httpd", "pacman": "apache"}},
-
-    # ── Sistem Araçları ───────────────────────────────────────────────────────
-    "7-zip":             {"name": "p7zip",               "desc": "Arşiv aracı",
-        "packages": {"apt": "p7zip-full", "dnf": "p7zip", "pacman": "p7zip", "zypper": "p7zip"}},
-    "winrar":            {"name": "p7zip",               "desc": "Arşiv aracı",
-        "packages": {"apt": "p7zip-full", "dnf": "p7zip", "pacman": "p7zip", "zypper": "p7zip"}},
-    "ccleaner":          {"name": "BleachBit",           "desc": "Sistem temizleyici",
-        "packages": {"apt": "bleachbit", "dnf": "bleachbit", "pacman": "bleachbit", "zypper": "bleachbit", "flatpak": "org.bleachbit.BleachBit"}},
-    "rainmeter":         {"name": "Conky",               "desc": "Masaüstü widget sistemi",
-        "packages": {"apt": "conky", "dnf": "conky", "pacman": "conky", "zypper": "conky"}},
-    "everything":        {"name": "fd",                  "desc": "Terminal tabanlı arama",
-        "packages": {"apt": "fd-find", "dnf": "fd-find", "pacman": "fd", "zypper": "fd"}},
-    "hwmonitor":         {"name": "Psensor",             "desc": "Donanım izleme",
-        "packages": {"apt": "psensor", "dnf": "psensor", "pacman": "psensor"}},
-    "cpu-z":             {"name": "CPU-X",               "desc": "CPU bilgisi",
-        "packages": {"apt": "cpu-x", "dnf": "cpu-x", "pacman": "cpu-x", "flatpak": "io.github.thetumultuousunicornofdarkness.cpu-x"}},
-    "msi afterburner":   {"name": "CoreCtrl",            "desc": "GPU hız aşırtma",
-        "packages": {"apt": "corectrl", "dnf": "corectrl", "pacman": "corectrl"}},
-    "autohotkey":        {"name": "AutoKey",             "desc": "Tuş makroları",
-        "packages": {"apt": "autokey-gtk", "dnf": "autokey", "pacman": "autokey", "flatpak": "com.github.autokey.AutoKey"}},
-    "process hacker":    {"name": "btop",                "desc": "Sistem süreç yöneticisi",
-        "packages": {"apt": "btop", "dnf": "btop", "pacman": "btop", "zypper": "btop", "flatpak": "io.missioncenter.MissionCenter"}},
-    "task manager":      {"name": "btop",                "desc": "Sistem izleme",
-        "packages": {"apt": "btop", "dnf": "btop", "pacman": "btop", "zypper": "btop"}},
-    "rufus":             {"name": "Ventoy",              "desc": "USB boot aracı",
-        "packages": {"apt": "ventoy", "pacman": "ventoy", "flatpak": "org.gabmus.gfeeds"}},
-    "balena etcher":     {"name": "Etcher",              "desc": "USB yazdırma aracı",
-        "packages": {"apt": "balena-etcher", "dnf": "balena-etcher", "pacman": "balena-etcher-bin", "flatpak": "io.balena.Etcher"}},
-    "crystaldiskinfo":   {"name": "GSmartControl",       "desc": "Disk sağlığı izleyici",
-        "packages": {"apt": "gsmartcontrol", "dnf": "gsmartcontrol", "pacman": "gsmartcontrol", "flatpak": "net.sourceforge.gsmartcontrol"}},
-
-    # ── İletişim ──────────────────────────────────────────────────────────────
-    "discord":           {"name": "Discord",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "discord", "dnf": "discord", "pacman": "discord", "flatpak": "com.discordapp.Discord"}},
-    "slack":             {"name": "Slack",               "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "slack-desktop", "dnf": "slack", "pacman": "slack-desktop", "flatpak": "com.slack.Slack"}},
-    "telegram":          {"name": "Telegram",            "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "telegram-desktop", "dnf": "telegram-desktop", "pacman": "telegram-desktop", "zypper": "telegram-desktop", "flatpak": "org.telegram.desktop"}},
-    "zoom":              {"name": "Zoom",                "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "zoom", "dnf": "zoom", "pacman": "zoom", "flatpak": "us.zoom.Zoom"}},
-    "microsoft teams":   {"name": "MS Teams",            "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "teams", "dnf": "teams", "pacman": "teams", "flatpak": "com.microsoft.Teams"}},
-    "skype":             {"name": "Skype",               "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "skype", "dnf": "skype", "pacman": "skype", "flatpak": "com.skype.Client"}},
-    "whatsapp":          {"name": "Signal",              "desc": "Gizlilik odaklı alternatif",
-        "packages": {"apt": "signal-desktop", "dnf": "signal-desktop", "pacman": "signal-desktop", "flatpak": "org.signal.Signal"}},
-    "signal":            {"name": "Signal",              "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "signal-desktop", "dnf": "signal-desktop", "pacman": "signal-desktop", "flatpak": "org.signal.Signal"}},
-    "element":           {"name": "Element",             "desc": "Matrix istemcisi",
-        "packages": {"apt": "element-desktop", "dnf": "element-desktop", "pacman": "element-desktop", "flatpak": "im.riot.Riot"}},
-
-    # ── Güvenlik & VPN ────────────────────────────────────────────────────────
-    "bitwarden":         {"name": "Bitwarden",           "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "bitwarden", "dnf": "bitwarden", "pacman": "bitwarden", "flatpak": "com.bitwarden.desktop"}},
-    "keepass":           {"name": "KeePassXC",           "desc": "Şifre yöneticisi",
-        "packages": {"apt": "keepassxc", "dnf": "keepassxc", "pacman": "keepassxc", "zypper": "keepassxc", "flatpak": "org.keepassxc.KeePassXC"}},
-    "malwarebytes":      {"name": "ClamAV",              "desc": "Açık kaynak antivirüs",
-        "packages": {"apt": "clamav", "dnf": "clamav", "pacman": "clamav", "zypper": "clamav"}},
-    "nordvpn":           {"name": "NordVPN",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "nordvpn", "dnf": "nordvpn", "pacman": "nordvpn-bin"}},
-    "expressvpn":        {"name": "ProtonVPN",           "desc": "VPN alternatifi",
-        "packages": {"apt": "protonvpn", "dnf": "protonvpn", "pacman": "protonvpn", "flatpak": "com.protonvpn.www"}},
-    "protonvpn":         {"name": "ProtonVPN",           "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "protonvpn", "dnf": "protonvpn", "pacman": "protonvpn", "flatpak": "com.protonvpn.www"}},
-    "mullvad":           {"name": "Mullvad VPN",         "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "mullvad-vpn", "dnf": "mullvad-vpn", "pacman": "mullvad-vpn-bin", "flatpak": "net.mullvad.MullvadVPN"}},
-    "openvpn":           {"name": "OpenVPN",             "desc": "VPN istemcisi",
-        "packages": {"apt": "openvpn", "dnf": "openvpn", "pacman": "openvpn", "zypper": "openvpn"}},
-    "tailscale":         {"name": "Tailscale",           "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "tailscale", "dnf": "tailscale", "pacman": "tailscale"}},
-
-    # ── Uzak Masaüstü & Senkronizasyon ───────────────────────────────────────
-    "teamviewer":        {"name": "RustDesk",            "desc": "Açık kaynak uzak masaüstü",
-        "packages": {"apt": "rustdesk", "dnf": "rustdesk", "pacman": "rustdesk-bin", "flatpak": "com.rustdesk.RustDesk"}},
-    "anydesk":           {"name": "AnyDesk",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "anydesk", "dnf": "anydesk", "pacman": "anydesk-bin", "flatpak": "com.anydesk.Anydesk"}},
-    "rustdesk":          {"name": "RustDesk",            "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "rustdesk", "dnf": "rustdesk", "pacman": "rustdesk-bin", "flatpak": "com.rustdesk.RustDesk"}},
-    "syncthing":         {"name": "Syncthing",           "desc": "Dosya senkronizasyonu",
-        "packages": {"apt": "syncthing", "dnf": "syncthing", "pacman": "syncthing", "zypper": "syncthing", "flatpak": "me.kozec.syncthingtk"}},
-    "onedrive":          {"name": "Nextcloud",           "desc": "Bulut depolama",
-        "packages": {"apt": "nextcloud-desktop", "dnf": "nextcloud-client", "pacman": "nextcloud-client", "flatpak": "com.nextcloud.desktopclient.nextcloud"}},
-    "dropbox":           {"name": "Dropbox",             "desc": "Linux sürümü mevcut",
-        "packages": {"apt": "dropbox", "dnf": "dropbox", "pacman": "dropbox", "flatpak": "com.dropbox.Client"}},
-    "google drive":      {"name": "rclone",              "desc": "Google Drive bağlantısı",
-        "packages": {"apt": "rclone", "dnf": "rclone", "pacman": "rclone", "zypper": "rclone"}},
-    "mega":              {"name": "MEGAsync",            "desc": "Bulut depolama",
-        "packages": {"apt": "megasync", "dnf": "megasync", "pacman": "megasync", "flatpak": "nz.mega.MEGAsync"}},
-
-    # ── Oyun ──────────────────────────────────────────────────────────────────
-    "steam":             {"name": "Steam",               "desc": "Linux'ta çalışır",
-        "packages": {"apt": "steam", "dnf": "steam", "pacman": "steam", "flatpak": "com.valvesoftware.Steam"}},
-    "epic games":        {"name": "Heroic Games Launcher","desc": "Epic & GOG alternatif launcher",
-        "packages": {"apt": "heroic", "dnf": "heroic", "pacman": "heroic-games-launcher-bin", "flatpak": "com.heroicgameslauncher.hgl"}},
-    "gog galaxy":        {"name": "Heroic Games Launcher","desc": "GOG kütüphanesi",
-        "packages": {"apt": "heroic", "dnf": "heroic", "pacman": "heroic-games-launcher-bin", "flatpak": "com.heroicgameslauncher.hgl"}},
-    "battle.net":        {"name": "Lutris",              "desc": "Blizzard oyunları için",
-        "packages": {"apt": "lutris", "dnf": "lutris", "pacman": "lutris", "flatpak": "net.lutris.Lutris"}},
-    "minecraft launcher":{"name": "Prism Launcher",      "desc": "Minecraft launcher",
-        "packages": {"apt": "prismlauncher", "dnf": "prismlauncher", "pacman": "prismlauncher", "flatpak": "org.prismlauncher.PrismLauncher"}},
-    "curseforge":        {"name": "Prism Launcher",      "desc": "Minecraft mod yönetimi",
-        "packages": {"apt": "prismlauncher", "dnf": "prismlauncher", "pacman": "prismlauncher", "flatpak": "org.prismlauncher.PrismLauncher"}},
-    "osu!":              {"name": "osu!lazer",           "desc": "Linux sürümü mevcut",
-        "packages": {"pacman": "osu-lazer-bin", "flatpak": "sh.ppy.osu"}},
-    "roblox":            {"name": "Sober",               "desc": "Native Linux Roblox istemcisi",
-        "packages": {"flatpak": "org.vinegarhq.Sober"}},
-    "retroarch":         {"name": "RetroArch",           "desc": "Emülasyon platformu",
-        "packages": {"apt": "retroarch", "dnf": "retroarch", "pacman": "retroarch", "zypper": "retroarch", "flatpak": "org.libretro.RetroArch"}},
-    "valorant":          {"name": "— Desteklenmiyor",    "desc": "Vanguard kernel-level AC, Linux'ta yok",
-        "packages": {}},
-    "riot vanguard":     {"name": "— Desteklenmiyor",    "desc": "Kernel-level AC, Linux'ta çalışmaz",
-        "packages": {}},
-
-    # ── Not Alma & Verimlilik ─────────────────────────────────────────────────
-    "notion":            {"name": "Notion",              "desc": "Linux istemcisi mevcut",
-        "packages": {"apt": "notion-app", "pacman": "notion-app-electron", "flatpak": "io.github.davidoc.notion"}},
-    "obsidian":          {"name": "Obsidian",            "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "obsidian", "dnf": "obsidian", "pacman": "obsidian", "flatpak": "md.obsidian.Obsidian"}},
-    "joplin":            {"name": "Joplin",              "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "joplin", "pacman": "joplin", "flatpak": "net.cozic.joplin_desktop"}},
-    "anki":              {"name": "Anki",                "desc": "Kart tabanlı öğrenme",
-        "packages": {"apt": "anki", "dnf": "anki", "pacman": "anki", "flatpak": "net.ankiweb.Anki"}},
-    "draw.io":           {"name": "draw.io",             "desc": "Diyagram oluşturucu",
-        "packages": {"flatpak": "com.jgraph.drawio.desktop"}},
-    "amazon kindle":     {"name": "Calibre",             "desc": "E-kitap yöneticisi",
-        "packages": {"apt": "calibre", "dnf": "calibre", "pacman": "calibre", "zypper": "calibre", "flatpak": "com.calibre_ebook.calibre"}},
-    "calibre":           {"name": "Calibre",             "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "calibre", "dnf": "calibre", "pacman": "calibre", "zypper": "calibre", "flatpak": "com.calibre_ebook.calibre"}},
-
-    # ── Mühendislik / CAD ─────────────────────────────────────────────────────
-    "solidworks":        {"name": "FreeCAD",             "desc": "Açık kaynak CAD",
-        "packages": {"apt": "freecad", "dnf": "freecad", "pacman": "freecad", "zypper": "freecad", "flatpak": "org.freecad.FreeCAD"}},
-    "autocad":           {"name": "FreeCAD",             "desc": "2D/3D CAD alternatifi",
-        "packages": {"apt": "freecad", "dnf": "freecad", "pacman": "freecad", "zypper": "freecad", "flatpak": "org.freecad.FreeCAD"}},
-    "fusion 360":        {"name": "FreeCAD",             "desc": "3D modelleme",
-        "packages": {"apt": "freecad", "dnf": "freecad", "pacman": "freecad", "zypper": "freecad", "flatpak": "org.freecad.FreeCAD"}},
-    "matlab":            {"name": "GNU Octave",          "desc": "Matematiksel analiz",
-        "packages": {"apt": "octave", "dnf": "octave", "pacman": "octave", "zypper": "octave", "flatpak": "org.octave.Octave"}},
-
-    # ── Torrent & Dosya Paylaşımı ─────────────────────────────────────────────
-    "qbittorrent":       {"name": "qBittorrent",         "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "qbittorrent", "dnf": "qbittorrent", "pacman": "qbittorrent", "zypper": "qbittorrent", "flatpak": "org.qbittorrent.qBittorrent"}},
-    "utorrent":          {"name": "qBittorrent",         "desc": "Açık kaynak alternatif",
-        "packages": {"apt": "qbittorrent", "dnf": "qbittorrent", "pacman": "qbittorrent", "zypper": "qbittorrent", "flatpak": "org.qbittorrent.qBittorrent"}},
-    "filezilla":         {"name": "FileZilla",           "desc": "Zaten Linux'ta var!",
-        "packages": {"apt": "filezilla", "dnf": "filezilla", "pacman": "filezilla", "zypper": "filezilla", "flatpak": "org.filezilla_project.FileZilla"}},
-    "teracopy":          {"name": "rsync",               "desc": "Hızlı dosya kopyalama",
-        "packages": {"apt": "rsync", "dnf": "rsync", "pacman": "rsync", "zypper": "rsync"}},
-    "winmerge":          {"name": "Meld",                "desc": "Dosya karşılaştırma",
-        "packages": {"apt": "meld", "dnf": "meld", "pacman": "meld", "zypper": "meld", "flatpak": "org.gnome.meld"}},
-
-    # ── Geliştirici Araçları (Runtime/SDK) ───────────────────────────────────
-    "microsoft .net":    {"name": ".NET SDK",            "desc": "Linux .NET desteği tam",
-        "packages": {"apt": "dotnet-sdk-8", "dnf": "dotnet-sdk-8.0", "pacman": "dotnet-sdk-8", "zypper": "dotnet-sdk-8"}},
-    "visual c++":        {"name": "GCC / Clang",         "desc": "Linux derleyici araçları",
-        "packages": {"apt": "build-essential", "dnf": "gcc gcc-c++", "pacman": "base-devel", "zypper": "gcc gcc-c++"}},
-    "java runtime":      {"name": "OpenJDK",             "desc": "Java runtime",
-        "packages": {"apt": "openjdk-21-jdk", "dnf": "java-21-openjdk", "pacman": "jdk-openjdk", "zypper": "java-21-openjdk"}},
-    "golang":            {"name": "Go",                  "desc": "Linux desteği mevcut",
-        "packages": {"apt": "golang", "dnf": "golang", "pacman": "go", "zypper": "go"}},
-    "rust":              {"name": "Rust",                "desc": "Linux desteği mevcut",
-        "packages": {"apt": "rustc", "dnf": "rust", "pacman": "rust", "zypper": "rust"}},
+# ── Klasör haritası (Windows → Linux) ────────────────────────────────────────
+# ── Klasör haritası (Windows → Linux) ────────────────────────────────────────
+FOLDER_MAP = {
+    "Masaüstü":     str(Path.home() / "Desktop"),
+    "Belgeler":     str(Path.home() / "Documents"),
+    "İndirilenler": str(Path.home() / "Downloads"),
+    "Müzik":        str(Path.home() / "Music"),
+    "Resimler":     str(Path.home() / "Pictures"),
+    "Videolar":     str(Path.home() / "Videos"),
 }
 
-# ── Atlanacak dosya/klasör kalıpları ─────────────────────────────────────────
-_SKIP_PATTERNS = [
-    "kinect for windows speech", "sdk arm64", "wpt redistributable",
-    "wptx64", "winrt intellisense", "windows app certification",
-    "universal crt", "clickonce bootstrapper", "kits configuration",
-    "diagnoticshub", "icecap_collection", "launcher prerequisites",
-    "setup 0.0", "${{"  ,
-]
-
-SKIP_DIR_NAMES = {
-    "Müziğim", "Resimlerim", "Videolarım",
-    "My Music", "My Pictures", "My Videos",
-    "Application Data", "Local Settings",
-    ".git", ".hg", ".svn",
-    "node_modules", "__pycache__",
-    ".venv", "venv",
+# ── Paket yöneticisi komutları ────────────────────────────────────────────────
+PKG_MANAGERS = {
+    "apt":    "sudo apt install -y",
+    "dnf":    "sudo dnf install -y",
+    "pacman": "sudo pacman -S --noconfirm",
+    "zypper": "sudo zypper install -y",
+    "flatpak":"flatpak install -y flathub",
 }
 
+def detect_distro_info() -> tuple[str, str]:
+    """
+    Linux dağıtım adını ve varsayılan paket yöneticisini tespit eder.
+    Örn: ("Fedora Linux 44", "dnf"), ("Ubuntu 24.04 LTS", "apt"), ("Arch Linux", "pacman")
+    """
+    distro_name = "Linux"
+    pkg_mgr = "apt"
 
-def _is_subpath(child: Path, parent: Path) -> bool:
+    os_release = Path("/etc/os-release")
+    if os_release.exists():
+        try:
+            info = {}
+            with open(os_release, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        info[k] = v.strip('"\'')
+            distro_name = info.get("PRETTY_NAME", info.get("NAME", "Linux"))
+        except Exception:
+            pass
+    else:
+        distro_name = platform.system() + " " + platform.release()
+
+    for mgr in ["apt", "dnf", "pacman", "zypper", "apk", "xbps-query"]:
+        if shutil.which(mgr):
+            pkg_mgr = mgr
+            break
+
+    return distro_name, pkg_mgr
+
+def detect_pkg_manager() -> str:
+    _, mgr = detect_distro_info()
+    return mgr
+
+def get_xdg_user_dirs() -> dict[str, Path]:
+    """
+    Sistemdeki XDG kullanıcı dizinlerini (Masaüstü, Belgeler, Müzikler, vb.) dinamik tespit eder.
+    xdg-user-dir komutunu ve ~/.config/user-dirs.dirs dosyasını kontrol eder.
+    """
+    xdg_map = {}
+    xdg_keys = ["DESKTOP", "DOCUMENTS", "DOWNLOAD", "MUSIC", "PICTURES", "VIDEOS"]
+
+    for key in xdg_keys:
+        try:
+            res = subprocess.run(["xdg-user-dir", key], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                p = Path(res.stdout.strip())
+                if p != Path.home():
+                    xdg_map[key] = p
+        except Exception:
+            pass
+
+    user_dirs_file = Path.home() / ".config" / "user-dirs.dirs"
+    if user_dirs_file.exists():
+        try:
+            with open(user_dirs_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("XDG_") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.replace("XDG_", "").replace("_DIR", "")
+                        v = v.strip('"\'').replace("$HOME", str(Path.home()))
+                        if k in xdg_keys and k not in xdg_map:
+                            xdg_map[k] = Path(v)
+        except Exception:
+            pass
+
+    fallbacks = {
+        "MUSIC": ["Müzikler", "Müzik", "Music", "Musics"],
+        "DOCUMENTS": ["Belgeler", "Documents"],
+        "DESKTOP": ["Masaüstü", "Desktop"],
+        "DOWNLOAD": ["İndirilenler", "Downloads"],
+        "PICTURES": ["Resimler", "Pictures"],
+        "VIDEOS": ["Videolar", "Videos"],
+    }
+    for key, candidates in fallbacks.items():
+        if key not in xdg_map:
+            for cand in candidates:
+                cand_path = Path.home() / cand
+                if cand_path.exists():
+                    xdg_map[key] = cand_path
+                    break
+            if key not in xdg_map:
+                xdg_map[key] = Path.home() / candidates[0]
+
+    return xdg_map
+
+def resolve_linux_user_dir(folder_name: str, xdg_map: dict[str, Path] = None) -> str:
+    """
+    Yedeklenen klasör adını (örn: "Musics", "Music", "Müzik", "Belgeler")
+    Linux sistemindeki XDG yerelleştirilmiş klasör yoluna (örn: ~/Müzikler) dinamik eşler.
+    """
+    if xdg_map is None:
+        xdg_map = get_xdg_user_dirs()
+
+    norm = folder_name.strip().lower()
+
+    if norm in ["müzik", "müzikler", "music", "musics", "my music", "my_music", "müziklerim"]:
+        return str(xdg_map.get("MUSIC", Path.home() / "Müzikler"))
+
+    if norm in ["belgeler", "belge", "documents", "document", "docs", "my documents", "my_documents", "belgelerim"]:
+        return str(xdg_map.get("DOCUMENTS", Path.home() / "Belgeler"))
+
+    if norm in ["masaüstü", "masaustu", "desktop"]:
+        return str(xdg_map.get("DESKTOP", Path.home() / "Masaüstü"))
+
+    if norm in ["indirilenler", "indirmeler", "downloads", "download", "indirilen"]:
+        return str(xdg_map.get("DOWNLOAD", Path.home() / "İndirilenler"))
+
+    if norm in ["resimler", "resim", "pictures", "picture", "photos", "my pictures", "my_pictures", "resimlerim"]:
+        return str(xdg_map.get("PICTURES", Path.home() / "Resimler"))
+
+    if norm in ["videolar", "video", "videos", "movies", "my videos", "my_videos", "videolarım"]:
+        return str(xdg_map.get("VIDEOS", Path.home() / "Videolar"))
+
+    return str(Path.home() / folder_name)
+
+def register_firefox_profile(target_firefox_dir: Path, profile_folder_name: str) -> bool:
+    """
+    Firefox profili içe aktarıldığında profiles.ini dosyasını günceller/oluşturur.
+    Linux'ta Firefox açıldığında aktarılan profili tanır.
+    """
     try:
-        child.resolve().relative_to(parent.resolve())
+        target_firefox_dir.mkdir(parents=True, exist_ok=True)
+        profiles_ini = target_firefox_dir / "profiles.ini"
+
+        lines = []
+        if profiles_ini.exists():
+            with open(profiles_ini, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+
+        content = "".join(lines)
+        if f"Path={profile_folder_name}" in content:
+            return True
+
+        profile_indices = []
+        for line in lines:
+            line_str = line.strip()
+            if line_str.startswith("[Profile") and line_str.endswith("]"):
+                try:
+                    idx = int(line_str[8:-1])
+                    profile_indices.append(idx)
+                except ValueError:
+                    pass
+
+        next_idx = max(profile_indices) + 1 if profile_indices else 0
+
+        new_section = [
+            f"\n[Profile{next_idx}]\n",
+            f"Name=Win2Linux-{profile_folder_name}\n",
+            f"IsRelative=1\n",
+            f"Path={profile_folder_name}\n",
+        ]
+
+        if not profile_indices:
+            new_section.append("Default=1\n")
+            if "[General]" not in content:
+                new_section = ["[General]\nStartWithLastProfile=1\nVersion=2\n"] + new_section
+
+        with open(profiles_ini, "a", encoding="utf-8") as f:
+            f.writelines(new_section)
         return True
-    except ValueError:
+    except Exception as e:
+        print(f"Firefox profiles.ini hatası: {e}")
         return False
 
-
-# Modül yüklenirken bir kez hazırlanır; her eşleştirme çağrısında yeniden
-# sıralama ve regex derleme yapılmaz.
-_SORTED_KEYS = sorted(LINUX_ALTERNATIVES.keys(), key=len, reverse=True)
-_KEY_PATTERNS = {
-    kw: re.compile(r'(?<![a-z0-9])' + re.escape(kw) + r'(?![a-z0-9])')
-    for kw in _SORTED_KEYS
-}
-
-# Gündelik İngilizce kelimelerden oluşan anahtarlar tek başına fazla yanlış
-# pozitif üretebilir. Bunlar marka önekiyle veya ürün adının son anlamlı
-# kelimesi olarak geçtiğinde kabul edilir.
-_BRAND_PREFIXES = ("microsoft ", "ms ", "adobe ", "corel ")
-_GENERIC_SINGLE_WORD_KEYS = {
-    kw for kw in ("word", "access", "project", "publisher", "paint")
-    if kw in LINUX_ALTERNATIVES
-}
-
-# Ürün adının sonundaki yaygın yıl, sürüm, mimari ve sürüm-edisyon ekleri.
-_TRAILING_NOISE = re.compile(
-    r'^(20[12]\d|v?\d+(\.\d+)*|x86|x64|32-?bit|64-?bit|edition|professional|pro|home|standard)$'
-)
-
-
-def _last_meaningful_word(words: list[str]) -> str:
-    for word in reversed(words):
-        cleaned = word.strip("()[]{}.,;:_-")
-        if cleaned and not _TRAILING_NOISE.fullmatch(cleaned):
-            return cleaned
-    return ""
-
-
-def _match_alternative(prog_name: str) -> dict | None:
-    """Windows program adına karşılık gelen Linux alternatifini döndürür.
-
-    Kelime sınırı kullanıldığı için ``word`` anahtarı ``Microsoft Word`` ile
-    eşleşir; ``WordPad``, ``Keyword Manager`` ve ``Crossword Solver`` ile
-    eşleşmez. Genel tek kelimelik anahtarlar için ek bağlam kontrolü uygulanır.
+def query_repo_package_exists(pkg_name: str, pkg_mgr: str) -> bool:
     """
-    pl = prog_name.lower().strip()
-    if not pl or pl.startswith("${{"):
-        return None
+    Paketin dağıtım deposunda mevcut ve kurulabilir olup olmadığını sorgular.
+    """
+    if not pkg_name:
+        return False
 
-    for skip in _SKIP_PATTERNS:
-        if skip in pl:
-            return None
+    try:
+        if pkg_mgr == "apt":
+            res = subprocess.run(["apt-cache", "show", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0 and len(res.stdout.strip()) > 0 and "No package" not in res.stdout
+        elif pkg_mgr == "dnf":
+            res = subprocess.run(["dnf", "info", "--quiet", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0 and len(res.stdout.strip()) > 0 and "No match" not in res.stdout and "Eşleşme yok" not in res.stdout
+        elif pkg_mgr == "pacman":
+            res = subprocess.run(["pacman", "-Si", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0
+        elif pkg_mgr == "zypper":
+            res = subprocess.run(["zypper", "info", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0
+        elif pkg_mgr == "flatpak":
+            res = subprocess.run(["flatpak", "info", pkg_name],
+                                 capture_output=True, text=True, timeout=5)
+            return res.returncode == 0
+    except Exception:
+        pass
 
-    words = pl.split()
-    last_word = _last_meaningful_word(words)
-    has_brand = pl.startswith(_BRAND_PREFIXES)
+    return False
 
-    for kw in _SORTED_KEYS:
-        if not _KEY_PATTERNS[kw].search(pl):
-            continue
-        if kw in _GENERIC_SINGLE_WORD_KEYS and not has_brand and kw != last_word:
-            continue
-        return LINUX_ALTERNATIVES[kw]
+def search_repo_for_program(query: str, pkg_mgr: str) -> list[str]:
+    """
+    Dağıtım depolarında arama yapıp eşleşen paket adlarını bulur.
+    """
+    results = []
+    if not query:
+        return results
 
-    return None
+    q_clean = query.lower().replace(" ", "-")
 
+    try:
+        if pkg_mgr == "apt":
+            res = subprocess.run(["apt-cache", "search", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines()[:10]:
+                    parts = line.split(" - ", 1)
+                    if parts:
+                        results.append(parts[0].strip())
+        elif pkg_mgr == "dnf":
+            res = subprocess.run(["dnf", "search", "--quiet", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    line = line.strip()
+                    if line and ":" not in line and not line.startswith("=") and not line.lower().startswith("eşleşen") and not line.lower().startswith("matched"):
+                        pkg = line.split()[0].split(".")[0]
+                        if pkg and pkg not in results:
+                            results.append(pkg)
+        elif pkg_mgr == "pacman":
+            res = subprocess.run(["pacman", "-Ss", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if line.startswith("core/") or line.startswith("extra/") or line.startswith("multilib/"):
+                        pkg = line.split()[0].split("/")[1]
+                        results.append(pkg)
+        elif pkg_mgr == "flatpak":
+            res = subprocess.run(["flatpak", "search", q_clean],
+                                 capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines()[1:10]:
+                    parts = line.split("\t")
+                    if len(parts) >= 2:
+                        results.append(parts[1].strip())
+    except Exception:
+        pass
 
-DEFAULT_FOLDERS = {
-    "Masaüstü":    os.path.expanduser("~/Desktop"),
-    "Belgeler":    os.path.expanduser("~/Documents"),
-    "İndirilenler":os.path.expanduser("~/Downloads"),
-    "Müzik":       os.path.expanduser("~/Music"),
-    "Resimler":    os.path.expanduser("~/Pictures"),
-    "Videolar":    os.path.expanduser("~/Videos"),
-}
-
+    return results
 
 # ─────────────────────────────────────────────────────────────────────────────
-class Win2LinuxApp(ctk.CTk):
+#  Ana uygulama
+# ─────────────────────────────────────────────────────────────────────────────
+class Linux2HomeApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Win2Linux Migrator")
+        self.title("Linux2Home — Migration Importer")
         self.geometry("1100x720")
         self.minsize(900, 600)
         self.configure(fg_color=BG_DARK)
 
-        self._output_dir = tk.StringVar(value=str(Path.home() / "W2L_Migration"))
-        self._prog_results: list[dict] = []
-        self._folder_vars: dict[str, tk.BooleanVar] = {}
-        self._custom_folders: list[str] = []
+        self._pack_path    = tk.StringVar()
+        self._pack_dir     = None   # Çözümlenen klasör yolu (Path)
+        self._programs     = []     # programs.json içeriği
+        self._folder_vars  : dict[str, tk.BooleanVar] = {}
+        self._browser_vars : dict[str, tk.BooleanVar] = {}
+        self._config_vars  : dict[str, tk.BooleanVar] = {}
+        self._distro_name, self._pkg_mgr = detect_distro_info()
+        self._xdg_user_dirs = get_xdg_user_dirs()
+        self._repo_query_cache: dict[str, bool] = {}
+        self._verified_pkgs: dict[str, str] = {}
+        self._dry_run      = tk.BooleanVar(value=False)
+        self._use_flatpak  = tk.BooleanVar(value=bool(shutil.which("flatpak")))
+        self._install_log_lines: list[str] = []
 
         self._build_ui()
 
@@ -541,43 +345,60 @@ class Win2LinuxApp(ctk.CTk):
 
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
         logo_frame.pack(pady=(28, 8), padx=16, fill="x")
-        ctk.CTkLabel(logo_frame, text="🐧", font=("Segoe UI", 38)).pack()
-        ctk.CTkLabel(logo_frame, text="Win2Linux", font=("Segoe UI", 18, "bold"),
-                     text_color=TEXT).pack()
-        ctk.CTkLabel(logo_frame, text="Migrator v2.2", font=("Segoe UI", 12),
+        ctk.CTkLabel(logo_frame, text="🐧", font=(FONT_UI, 38)).pack()
+        ctk.CTkLabel(logo_frame, text="Linux2Home", font=(FONT_UI, 16, "bold"),
+                     text_color=SUCCESS).pack()
+        ctk.CTkLabel(logo_frame, text="Migration Importer", font=(FONT_UI, 10),
                      text_color=MUTED).pack()
 
-        ctk.CTkFrame(sidebar, height=1, fg_color="#334155").pack(fill="x", padx=16, pady=12)
+        ctk.CTkFrame(sidebar, height=1, fg_color="#1e3a2f").pack(fill="x", padx=16, pady=12)
 
         self._nav_btns: dict[str, ctk.CTkButton] = {}
         nav_items = [
-            ("📁  Dosyalar",        self._show_files),
-            ("📦  Programlar",      self._show_programs),
+            ("📦  Paket Seç",      self._show_select),
+            ("📁  Dosyalar",       self._show_files),
+            ("📋  Programlar",     self._show_programs),
             ("🌐  Browser Verileri",self._show_browser),
-            ("⚙️  Sistem Config",   self._show_config),
-            ("🚀  Export",          self._show_export),
+            ("⚙️  Konfigürasyon",  self._show_config),
+            ("🚀  Kurulum",        self._show_install),
         ]
         for label, cmd in nav_items:
             btn = ctk.CTkButton(sidebar, text=label, anchor="w",
-                                font=("Segoe UI", 13),
-                                fg_color="transparent", hover_color="#1e3a5f",
-                                text_color=MUTED, height=42, command=cmd)
+                                font=(FONT_UI, 12),
+                                fg_color="transparent", hover_color="#0d3320",
+                                text_color=MUTED, height=42,
+                                command=cmd)
             btn.pack(fill="x", padx=10, pady=2)
             self._nav_btns[label] = btn
 
-        ctk.CTkLabel(sidebar, text=f"v2.2 · {platform.node()}",
-                     font=("Segoe UI", 10), text_color="#475569").pack(side="bottom", pady=16)
+        # ── Sidebar footer: GitHub, host info, paket durumu ─────────────────
+        footer = ctk.CTkFrame(sidebar, fg_color="transparent")
+        footer.pack(side="bottom", fill="x", padx=10, pady=(0, 12))
+
         ctk.CTkButton(
-            sidebar, text="🐙  GitHub",
-            font=("Segoe UI", 11),
-            fg_color="transparent", hover_color="#1e3a5f",
-            text_color=MUTED, height=32, cursor="hand2",
-            command=lambda: __import__("webbrowser").open("https://github.com/AtillaTokmak")
-        ).pack(side="bottom", fill="x", padx=10, pady=(0, 4))
+            footer, text="🐙  GitHub",
+            font=(FONT_UI, 11),
+            fg_color="transparent", hover_color="#0d3320",
+            text_color=MUTED, height=30, cursor="hand2",
+            command=lambda: __import__("webbrowser").open(
+                "https://github.com/AtillaTokmak/Win2Linux")
+        ).pack(fill="x", pady=(0, 6))
+
+        ctk.CTkFrame(footer, height=1, fg_color="#1e3a2f").pack(fill="x", pady=(0, 6))
+
+        ctk.CTkLabel(footer,
+            text=f"🐧 {platform.node()}\n{self._pkg_mgr} tespit edildi",
+            font=(FONT_UI, 10), text_color=MUTED, justify="left").pack(anchor="w")
+
+        self._pack_status_lbl = ctk.CTkLabel(footer,
+            text="⚠️ Paket yüklenmedi", font=(FONT_UI, 10),
+            text_color=WARNING)
+        self._pack_status_lbl.pack(anchor="w", pady=(4, 0))
 
         self._content = ctk.CTkFrame(self, fg_color=BG_DARK, corner_radius=0)
         self._content.pack(side="left", fill="both", expand=True)
-        self._show_files()
+
+        self._show_select()
 
     def _clear_content(self):
         for w in self._content.winfo_children():
@@ -587,655 +408,1199 @@ class Win2LinuxApp(ctk.CTk):
 
     def _activate_nav(self, label: str):
         if label in self._nav_btns:
-            self._nav_btns[label].configure(text_color=TEXT, fg_color="#1e3a5f")
+            self._nav_btns[label].configure(text_color=TEXT, fg_color="#0d3320")
 
     def _page_header(self, title: str, subtitle: str):
         hdr = ctk.CTkFrame(self._content, fg_color="transparent")
         hdr.pack(fill="x", padx=32, pady=(28, 4))
-        ctk.CTkLabel(hdr, text=title, font=("Segoe UI", 24, "bold"),
+        ctk.CTkLabel(hdr, text=title, font=(FONT_UI, 22, "bold"),
                      text_color=TEXT).pack(anchor="w")
-        ctk.CTkLabel(hdr, text=subtitle, font=("Segoe UI", 13),
+        ctk.CTkLabel(hdr, text=subtitle, font=(FONT_UI, 11),
                      text_color=MUTED).pack(anchor="w", pady=(2, 0))
-        ctk.CTkFrame(self._content, height=1, fg_color="#1e3a5f").pack(
+        ctk.CTkFrame(self._content, height=1, fg_color="#1e3a2f").pack(
             fill="x", padx=32, pady=(12, 0))
 
-    # ── Sayfa 1 · Dosyalar (değişmedi) ───────────────────────────────────────
+    # ── Sayfa 0 · Paket Seç ──────────────────────────────────────────────────
+    def _show_select(self):
+        self._clear_content()
+        self._activate_nav("📦  Paket Seç")
+        self._page_header("Migration Paketini Seç",
+                          "Win2Linux Migrator ile oluşturulan ZIP veya klasörü aç")
+
+        main = ctk.CTkFrame(self._content, fg_color="transparent")
+        main.pack(fill="both", expand=True, padx=32, pady=20)
+
+        # Sürükle-bırak benzeri büyük seçim kutusu
+        drop_zone = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=16,
+                                  border_width=2, border_color="#1e3a2f")
+        drop_zone.pack(fill="x", pady=(0, 20))
+
+        inner = ctk.CTkFrame(drop_zone, fg_color="transparent")
+        inner.pack(pady=30)
+        ctk.CTkLabel(inner, text="📦", font=(FONT_UI, 48)).pack()
+        ctk.CTkLabel(inner, text="Migration Paketini Yükle",
+                     font=(FONT_UI, 16, "bold"), text_color=TEXT).pack(pady=(8, 4))
+        ctk.CTkLabel(inner, text="Win2Linux Migrator'ın oluşturduğu W2L_*.zip dosyasını\nveya çıkarılmış klasörü seçin",
+                     font=(FONT_UI, 11), text_color=MUTED, justify="center").pack()
+
+        btn_row = ctk.CTkFrame(inner, fg_color="transparent")
+        btn_row.pack(pady=16)
+        ctk.CTkButton(btn_row, text="📂  ZIP Dosyası Seç",
+                      command=self._select_zip,
+                      fg_color=ACCENT, hover_color=ACCENT2,
+                      font=(FONT_UI, 12, "bold"), height=42, width=180).pack(side="left", padx=6)
+        ctk.CTkButton(btn_row, text="📁  Klasör Seç",
+                      command=self._select_folder,
+                      fg_color=BG_CARD2, hover_color="#1e3a2f",
+                      text_color=TEXT, font=(FONT_UI, 12), height=42, width=150).pack(side="left", padx=6)
+
+        # Seçili yol
+        path_frame = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=10)
+        path_frame.pack(fill="x", pady=8)
+        path_inner = ctk.CTkFrame(path_frame, fg_color="transparent")
+        path_inner.pack(fill="x", padx=16, pady=12)
+        ctk.CTkLabel(path_inner, text="Seçili Paket:", font=(FONT_UI, 11),
+                     text_color=MUTED).pack(anchor="w")
+        self._path_display = ctk.CTkLabel(path_inner, text="Henüz seçilmedi",
+                                           font=(FONT_MONO, 11), text_color=WARNING)
+        self._path_display.pack(anchor="w", pady=(4, 0))
+
+        # Paket içeriği özeti
+        self._summary_frame = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=10)
+        self._summary_frame.pack(fill="x", pady=8)
+        self._summary_inner = ctk.CTkFrame(self._summary_frame, fg_color="transparent")
+        self._summary_inner.pack(fill="x", padx=16, pady=12)
+        ctk.CTkLabel(self._summary_inner, text="Paket İçeriği",
+                     font=(FONT_UI, 12, "bold"), text_color=TEXT).pack(anchor="w")
+        self._summary_lbl = ctk.CTkLabel(self._summary_inner,
+                                          text="Paket yüklendiğinde içerik buraya görünür.",
+                                          font=(FONT_UI, 11), text_color=MUTED)
+        self._summary_lbl.pack(anchor="w", pady=(4, 0))
+
+        # Devam butonu
+        self._continue_btn = ctk.CTkButton(main, text="Devam Et →",
+                      command=self._show_files,
+                      fg_color=ACCENT, hover_color=ACCENT2,
+                      font=(FONT_UI, 13, "bold"), height=44,
+                      state="disabled")
+        self._continue_btn.pack(fill="x", pady=(12, 0))
+
+    def _select_zip(self):
+        path = filedialog.askopenfilename(
+            title="Migration ZIP seç",
+            filetypes=[("ZIP Dosyaları", "*.zip"), ("Tümü", "*.*")]
+        )
+        if not path:
+            return
+        self._pack_path.set(path)
+        self._extract_zip(path)
+
+    def _select_folder(self):
+        path = filedialog.askdirectory(title="Migration klasörü seç")
+        if not path:
+            return
+        self._pack_path.set(path)
+        self._pack_dir = Path(path)
+        self._load_package()
+
+    def _extract_zip(self, zip_path: str):
+        """Extract the migration ZIP off the UI thread, with progress."""
+        extract_to = Path(zip_path).parent / Path(zip_path).stem
+        self._path_display.configure(
+            text="⏳ ZIP çıkarılıyor... (0%)", text_color=WARNING)
+        self._summary_lbl.configure(
+            text="ZIP çıkarılırken pencere donmaz, lütfen bekleyin.",
+            text_color=MUTED)
+
+        def worker():
+            try:
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    members = zf.namelist()
+                    total = max(len(members), 1)
+                    extract_to.mkdir(parents=True, exist_ok=True)
+                    for i, member in enumerate(members, 1):
+                        zf.extract(member, extract_to)
+                        if i % 25 == 0 or i == total:
+                            pct = int(i * 100 / total)
+                            self.after(
+                                0,
+                                lambda p=pct: self._path_display.configure(
+                                    text=f"⏳ ZIP çıkarılıyor... ({p}%)",
+                                    text_color=WARNING),
+                            )
+                self._pack_dir = extract_to
+                self.after(0, self._load_package)
+            except zipfile.BadZipFile:
+                self.after(0, lambda: messagebox.showerror(
+                    "Hata", "Bozuk veya geçersiz ZIP dosyası."))
+                self.after(0, lambda: self._path_display.configure(
+                    text="❌ ZIP çıkarılamadı", text_color=DANGER))
+            except Exception as e:
+                self.after(0, lambda err=e: messagebox.showerror(
+                    "Hata", f"ZIP çıkarılamadı:\n{err}"))
+                self.after(0, lambda: self._path_display.configure(
+                    text="❌ ZIP çıkarılamadı", text_color=DANGER))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _load_package(self):
+        if not self._pack_dir or not self._pack_dir.exists():
+            return
+
+        self._path_display.configure(
+            text=str(self._pack_dir), text_color=SUCCESS)
+
+        # programs.json
+        prog_json = self._pack_dir / "programs.json"
+        if prog_json.exists():
+            try:
+                with open(prog_json, "r", encoding="utf-8") as f:
+                    self._programs = json.load(f)
+            except:
+                self._programs = []
+
+        # Özet
+        has_files   = (self._pack_dir / "files").exists()
+        has_browser = (self._pack_dir / "browser").exists()
+        has_config  = (self._pack_dir / "config").exists()
+        has_progs   = len(self._programs) > 0
+
+        parts = []
+        if has_files:
+            dirs = list((self._pack_dir / "files").iterdir())
+            parts.append(f"📁 {len(dirs)} dosya klasörü")
+        if has_progs:
+            matched = sum(1 for p in self._programs if p.get("alt"))
+            parts.append(f"📦 {len(self._programs)} program ({matched} Linux alternatifi)")
+        if has_browser:
+            browsers = list((self._pack_dir / "browser").iterdir())
+            parts.append(f"🌐 {len(browsers)} tarayıcı verisi")
+        if has_config:
+            configs = list((self._pack_dir / "config").iterdir())
+            parts.append(f"⚙️ {len(configs)} konfigürasyon")
+
+        summary_text = "\n".join(f"  ✅ {p}" for p in parts) if parts else "⚠️ Paket içeriği bulunamadı"
+        self._summary_lbl.configure(text=summary_text, text_color=SUCCESS if parts else WARNING)
+
+        self._pack_status_lbl.configure(text="✅ Paket yüklendi", text_color=SUCCESS)
+        self._continue_btn.configure(state="normal")
+
+    # ── Sayfa 1 · Dosyalar ────────────────────────────────────────────────────
     def _show_files(self):
         self._clear_content()
         self._activate_nav("📁  Dosyalar")
-        self._page_header("Dosya Seçimi", "Linux'a taşımak istediğin klasörleri seç")
+        self._page_header("Dosyaları Yerleştir",
+                          "Klasörleri Linux home dizinine kopyala")
+
+        if not self._pack_dir:
+            self._no_pack_warning()
+            return
+
+        files_dir = self._pack_dir / "files"
+        if not files_dir.exists():
+            ctk.CTkLabel(self._content,
+                         text="⚠️ Bu pakette dosya klasörü bulunamadı.",
+                         font=(FONT_UI, 13), text_color=WARNING).pack(pady=40)
+            return
 
         scroll = ctk.CTkScrollableFrame(self._content, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=32, pady=16)
 
-        ctk.CTkLabel(scroll, text="Standart Klasörler",
-                     font=("Segoe UI", 14, "bold"), text_color=TEXT).pack(anchor="w", pady=(0, 10))
+        ctk.CTkLabel(scroll, text="Kopyalanacak Klasörler",
+                     font=(FONT_UI, 13, "bold"), text_color=TEXT).pack(anchor="w", pady=(0, 10))
 
+        self._folder_vars = {}
         grid = ctk.CTkFrame(scroll, fg_color="transparent")
         grid.pack(fill="x")
         grid.columnconfigure((0, 1), weight=1)
 
+        folders = list(files_dir.iterdir()) if files_dir.exists() else []
         row = 0
-        for i, (name, path) in enumerate(DEFAULT_FOLDERS.items()):
+        for i, src_folder in enumerate(sorted(folders)):
+            if not src_folder.is_dir():
+                continue
             col = i % 2
             if col == 0 and i > 0:
                 row += 1
+
+            name = src_folder.name
+            # Yerelleştirilmiş XDG Hedef klasörünü bul (örn: Musics -> ~/Müzikler)
+            linux_dst = resolve_linux_user_dir(name, self._xdg_user_dirs)
+
+            try:
+                size = sum(f.stat().st_size for f in src_folder.rglob("*") if f.is_file())
+                size_str = self._human(size)
+                file_count = sum(1 for f in src_folder.rglob("*") if f.is_file())
+            except:
+                size_str = "?"
+                file_count = 0
+
             card = ctk.CTkFrame(grid, fg_color=BG_CARD, corner_radius=10)
             card.grid(row=row, column=col, padx=6, pady=6, sticky="ew")
 
-            exists = os.path.exists(path)
-            size_str = ""
-            if exists:
-                try:
-                    size = sum(f.stat().st_size for f in Path(path).rglob("*") if f.is_file())
-                    size_str = f" · {self._human(size)}"
-                except:
-                    size_str = ""
-
-            var = tk.BooleanVar(value=exists)
-            self._folder_vars[name] = var
+            var = tk.BooleanVar(value=True)
+            self._folder_vars[name] = {"var": var, "src": src_folder, "dst": linux_dst}
 
             inner = ctk.CTkFrame(card, fg_color="transparent")
             inner.pack(fill="x", padx=14, pady=12)
+
             ctk.CTkCheckBox(inner, text=name, variable=var,
-                            font=("Segoe UI", 13, "bold"),
-                            text_color=TEXT if exists else MUTED,
-                            checkmark_color="white", fg_color=ACCENT).pack(anchor="w")
-            ctk.CTkLabel(inner,
-                         text=f"📂 {path}{size_str}" if exists else "⚠️ Klasör bulunamadı",
-                         font=("Segoe UI", 10), text_color=MUTED,
-                         wraplength=340).pack(anchor="w", pady=(3, 0))
+                            font=(FONT_UI, 12, "bold"),
+                            text_color=TEXT, checkmark_color="white",
+                            fg_color=ACCENT).pack(anchor="w")
 
-        ctk.CTkLabel(scroll, text="Özel Klasörler",
-                     font=("Segoe UI", 14, "bold"), text_color=TEXT).pack(anchor="w", pady=(22, 10))
-        self._custom_list_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        self._custom_list_frame.pack(fill="x")
-        ctk.CTkButton(scroll, text="➕  Klasör Ekle", command=self._add_custom_folder,
-                      fg_color=BG_CARD2, hover_color=ACCENT,
-                      text_color=TEXT, height=38).pack(anchor="w", pady=(8, 0))
+            ctk.CTkLabel(inner, text=f"📂 Kaynak: {src_folder.name}",
+                         font=(FONT_MONO, 9), text_color=MUTED).pack(anchor="w", pady=(3, 0))
+            ctk.CTkLabel(inner, text=f"🎯 Hedef: {linux_dst}",
+                         font=(FONT_MONO, 9), text_color=SUCCESS).pack(anchor="w")
+            ctk.CTkLabel(inner, text=f"📊 {file_count} dosya · {size_str}",
+                         font=(FONT_UI, 9), text_color=MUTED).pack(anchor="w")
 
-    def _add_custom_folder(self):
-        path = filedialog.askdirectory(title="Klasör seç")
-        if path:
-            self._custom_folders.append(path)
-            row = ctk.CTkFrame(self._custom_list_frame, fg_color=BG_CARD, corner_radius=8)
-            row.pack(fill="x", pady=3)
-            ctk.CTkLabel(row, text=f"📁 {path}", font=("Segoe UI", 11),
-                         text_color=TEXT).pack(side="left", padx=12, pady=8)
-            ctk.CTkButton(row, text="✕", width=28, height=28,
-                          fg_color=DANGER, hover_color="#b91c1c",
-                          command=lambda r=row, p=path: self._remove_custom(r, p)).pack(
-                side="right", padx=8)
-
-    def _remove_custom(self, row_widget, path):
-        if path in self._custom_folders:
-            self._custom_folders.remove(path)
-        row_widget.destroy()
+            # Çakışma uyarısı
+            if os.path.exists(linux_dst) and os.listdir(linux_dst):
+                warn = ctk.CTkFrame(inner, fg_color="#2d1b00", corner_radius=6)
+                warn.pack(fill="x", pady=(6, 0))
+                ctk.CTkLabel(warn,
+                             text="⚠️ Hedef klasör dolu — Üzerine yaz?",
+                             font=(FONT_UI, 9), text_color=WARNING).pack(padx=8, pady=4)
+                var_overwrite_key = f"overwrite_{name}"
+                overwrite_var = tk.BooleanVar(value=False)
+                self._folder_vars[var_overwrite_key] = {"var": overwrite_var}
+                ctk.CTkCheckBox(warn, text="Evet, üzerine yaz",
+                                variable=overwrite_var,
+                                font=(FONT_UI, 9), text_color=WARNING,
+                                fg_color=WARNING).pack(padx=8, pady=(0, 4))
 
     # ── Sayfa 2 · Programlar ──────────────────────────────────────────────────
     def _show_programs(self):
         self._clear_content()
-        self._activate_nav("📦  Programlar")
-        self._page_header("Kurulu Programlar",
-                          "Windows uygulamalarını tara ve Linux alternatiflerini keşfet")
+        self._activate_nav("📋  Programlar")
+        self._page_header("Program Alternatifleri",
+                          "Windows programlarınız için Linux alternatifleri ve kurulum komutları")
 
-        btn_frame = ctk.CTkFrame(self._content, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=32, pady=12)
-        self._scan_btn = ctk.CTkButton(
-            btn_frame, text="🔍  Taramayı Başlat",
-            command=self._scan_programs,
-            fg_color=ACCENT, hover_color="#2563EB",
-            font=("Segoe UI", 13, "bold"), height=40)
-        self._scan_btn.pack(side="left")
-        self._prog_status = ctk.CTkLabel(btn_frame, text="",
-                                          font=("Segoe UI", 12), text_color=MUTED)
-        self._prog_status.pack(side="left", padx=16)
+        if not self._pack_dir:
+            self._no_pack_warning()
+            return
 
-        self._prog_scroll = ctk.CTkScrollableFrame(self._content, fg_color="transparent")
-        self._prog_scroll.pack(fill="both", expand=True, padx=32, pady=8)
-        if self._prog_results:
-            self._render_program_list()
+        if not self._programs:
+            ctk.CTkLabel(self._content,
+                         text="⚠️ Bu pakette program listesi bulunamadı.",
+                         font=(FONT_UI, 13), text_color=WARNING).pack(pady=40)
+            return
 
-    def _scan_programs(self):
-        self._scan_btn.configure(state="disabled", text="⏳  Taranıyor...")
-        self._prog_status.configure(text="Kayıt defteri okunuyor...")
-        self._prog_results = []
-        threading.Thread(target=self._do_scan, daemon=True).start()
+        scroll = ctk.CTkScrollableFrame(self._content, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=32, pady=16)
 
-    def _do_scan(self):
-        results = []
-        reg_paths = [
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-        ]
-        for reg_path in reg_paths:
-            try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
-                for i in range(winreg.QueryInfoKey(key)[0]):
-                    try:
-                        sub_key = winreg.OpenKey(key, winreg.EnumKey(key, i))
-                        name, _ = winreg.QueryValueEx(sub_key, "DisplayName")
-                        if name and name.strip():
-                            results.append(name.strip())
-                    except:
-                        pass
-            except:
-                pass
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                  r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
-            for i in range(winreg.QueryInfoKey(key)[0]):
-                try:
-                    sub_key = winreg.OpenKey(key, winreg.EnumKey(key, i))
-                    name, _ = winreg.QueryValueEx(sub_key, "DisplayName")
-                    if name and name.strip():
-                        results.append(name.strip())
-                except:
-                    pass
-        except:
-            pass
+        # Dağıtım ve Paket Yöneticisi Bilgi Kartı
+        distro_frame = ctk.CTkFrame(scroll, fg_color="#122538", corner_radius=10)
+        distro_frame.pack(fill="x", pady=(0, 12))
+        distro_inner = ctk.CTkFrame(distro_frame, fg_color="transparent")
+        distro_inner.pack(fill="x", padx=16, pady=10)
 
-        seen, unique = set(), []
-        for r in results:
-            if r.lower() not in seen:
-                seen.add(r.lower())
-                unique.append(r)
+        ctk.CTkLabel(distro_inner,
+                     text=f"🐧 Tespit Edilen Dağıtım: {self._distro_name}   |   📦 Depo Yöneticisi: {self._pkg_mgr.upper()}",
+                     font=(FONT_UI, 11, "bold"), text_color=SUCCESS).pack(side="left")
 
-        matched = []
-        for prog in sorted(unique):
-            alt = _match_alternative(prog)
-            entry: dict = {"name": prog, "alt": None}
-            if alt:
-                # Yeni JSON yapısı: alt artık dict
-                entry["alt"] = {
-                    "name":     alt["name"],
-                    "desc":     alt["desc"],
-                    "packages": alt["packages"],   # {"apt":..., "dnf":..., "pacman":..., "flatpak":...}
-                }
-            matched.append(entry)
-        self._prog_results = matched
-        self.after(0, self._scan_done)
+        query_btn = ctk.CTkButton(distro_inner, text="🔍 Dağıtım Depolarında Sorgula",
+                                  command=lambda: self._query_repo_packages(prog_list_frame, cmd_box_ref),
+                                  fg_color=ACCENT, hover_color=ACCENT2,
+                                  font=(FONT_UI, 10, "bold"), text_color="white", height=28)
+        query_btn.pack(side="right")
 
-    def _scan_done(self):
-        n = len(self._prog_results)
-        matched = sum(1 for p in self._prog_results if p["alt"])
-        self._prog_status.configure(
-            text=f"✅ {n} program bulundu · {matched} alternatif eşleşti",
-            text_color=SUCCESS)
-        self._scan_btn.configure(state="normal", text="🔄  Yeniden Tara")
-        self._render_program_list()
+        # İstatistikler
+        matched = [p for p in self._programs if p.get("alt")]
+        stats = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10)
+        stats.pack(fill="x", pady=(0, 12))
+        stat_inner = ctk.CTkFrame(stats, fg_color="transparent")
+        stat_inner.pack(fill="x", padx=16, pady=12)
 
-    def _render_program_list(self):
-        for w in self._prog_scroll.winfo_children():
-            w.destroy()
-        if not hasattr(self, "_filter_var"):
-            self._filter_var = tk.BooleanVar(value=False)
-        top = ctk.CTkFrame(self._prog_scroll, fg_color="transparent")
-        top.pack(fill="x", pady=(0, 10))
-        ctk.CTkCheckBox(top, text="Sadece Linux alternatifi olanları göster",
-                        variable=self._filter_var,
-                        command=self._render_program_list,
+        cols = ctk.CTkFrame(stat_inner, fg_color="transparent")
+        cols.pack(fill="x")
+        for val, label, color in [
+            (str(len(self._programs)), "Toplam Program", TEXT),
+            (str(len(matched)),        "Alternatif Bulundu", SUCCESS),
+            (str(len(self._programs) - len(matched)), "Manuel Araştır", WARNING),
+        ]:
+            col = ctk.CTkFrame(cols, fg_color=BG_CARD2, corner_radius=8)
+            col.pack(side="left", padx=4, ipadx=16, ipady=8)
+            ctk.CTkLabel(col, text=val, font=(FONT_UI, 22, "bold"),
+                         text_color=color).pack()
+            ctk.CTkLabel(col, text=label, font=(FONT_UI, 9),
+                         text_color=MUTED).pack()
+
+        # Toplu kur komut kutusu
+        cmd_box_ref = {}
+        install_cmd = self._build_install_cmd([p for p in matched if p.get("alt")])
+        if install_cmd:
+            cmd_frame = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10)
+            cmd_frame.pack(fill="x", pady=(0, 12))
+            cmd_inner = ctk.CTkFrame(cmd_frame, fg_color="transparent")
+            cmd_inner.pack(fill="x", padx=16, pady=12)
+            ctk.CTkLabel(cmd_inner, text="Toplu Kurulum Komutu",
+                         font=(FONT_UI, 11, "bold"), text_color=TEXT).pack(anchor="w")
+            cmd_box = ctk.CTkTextbox(cmd_inner, height=70,
+                                      font=(FONT_MONO, 11),
+                                      fg_color=BG_DARK, text_color=SUCCESS)
+            cmd_box.pack(fill="x", pady=(4, 0))
+            cmd_box.insert("end", install_cmd)
+            cmd_box.configure(state="disabled")
+            cmd_box_ref["box"] = cmd_box
+
+            btn_row = ctk.CTkFrame(cmd_inner, fg_color="transparent")
+            btn_row.pack(anchor="w", pady=(6, 0))
+            ctk.CTkButton(btn_row, text="📋  Komutu Kopyala",
+                          command=lambda: self._copy_to_clipboard(cmd_box.get("1.0", "end-1c")),
+                          fg_color=BG_CARD2, hover_color=ACCENT,
+                          text_color=TEXT, height=32).pack(side="left")
+            term = self._detect_terminal()
+            ctk.CTkButton(btn_row,
+                text=("⚡  Terminalde Çalıştır" if term else "⚡  Terminal bulunamadı"),
+                command=lambda: self._run_in_terminal(cmd_box.get("1.0", "end-1c")),
+                state=("normal" if term else "disabled"),
+                fg_color=ACCENT, hover_color=ACCENT2,
+                font=(FONT_UI, 11, "bold"),
+                text_color="white", height=32).pack(side="left", padx=(8, 0))
+
+        # Filtre
+        filter_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        filter_frame.pack(fill="x", pady=(0, 8))
+        self._prog_filter = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(filter_frame,
+                        text="Yalnızca Linux alternatifi olanları göster",
+                        variable=self._prog_filter,
+                        command=lambda: self._refresh_prog_list(prog_list_frame),
                         text_color=MUTED).pack(side="left")
-        for prog in self._prog_results:
-            if self._filter_var.get() and not prog["alt"]:
-                continue
-            card = ctk.CTkFrame(self._prog_scroll, fg_color=BG_CARD, corner_radius=8)
-            card.pack(fill="x", pady=3)
-            card.columnconfigure(1, weight=1)
-            icon = "✅" if prog["alt"] else "❓"
-            ctk.CTkLabel(card, text=icon, font=("Segoe UI", 16), width=36).grid(
-                row=0, column=0, padx=10, pady=10)
-            ctk.CTkLabel(card, text=prog["name"], font=("Segoe UI", 12),
-                         text_color=TEXT, anchor="w").grid(row=0, column=1, sticky="w", pady=10)
-            if prog["alt"]:
-                alt = prog["alt"]
-                has_pkgs = bool(alt["packages"])
-                bg = "#0f2b1f" if has_pkgs else "#2d1000"
-                fg = SUCCESS if has_pkgs else DANGER
-                alt_frame = ctk.CTkFrame(card, fg_color=bg, corner_radius=6)
-                alt_frame.grid(row=0, column=2, padx=10, pady=6)
-                ctk.CTkLabel(alt_frame, text=f"🐧 {alt['name']}",
-                             font=("Segoe UI", 11, "bold"), text_color=fg).pack(padx=10, pady=(4, 0))
-                ctk.CTkLabel(alt_frame, text=alt["desc"],
-                             font=("Segoe UI", 9), text_color=MUTED).pack(padx=10, pady=(0, 4))
-                # Paket yöneticisi etiketleri
-                if alt["packages"]:
-                    pkg_row = ctk.CTkFrame(alt_frame, fg_color="transparent")
-                    pkg_row.pack(padx=10, pady=(0, 4))
-                    for mgr in ["apt", "dnf", "pacman", "flatpak"]:
-                        if mgr in alt["packages"]:
-                            ctk.CTkLabel(pkg_row, text=mgr,
-                                         font=("Segoe UI", 8),
-                                         text_color="#60a5fa",
-                                         fg_color="#1e3a5f",
-                                         corner_radius=4,
-                                         padx=4, pady=1).pack(side="left", padx=2)
 
-    # ── Sayfa 3 · Browser (değişmedi) ─────────────────────────────────────────
+        prog_list_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        prog_list_frame.pack(fill="x")
+        self._refresh_prog_list(prog_list_frame)
+
+    def _query_repo_packages(self, container, cmd_box_ref):
+        """
+        Dağıtımın depolarına doğrudan sorgu atarak paket mevcudiyetini kontrol eder ve günceller.
+        """
+        def worker():
+            for prog in self._programs:
+                alt = prog.get("alt")
+                if not alt:
+                    continue
+                packages = alt.get("packages", {})
+                cand_pkg = packages.get(self._pkg_mgr)
+
+                if cand_pkg and query_repo_package_exists(cand_pkg, self._pkg_mgr):
+                    self._verified_pkgs[prog["name"]] = cand_pkg
+                else:
+                    query_term = alt.get("name", prog["name"])
+                    found_pkgs = search_repo_for_program(query_term, self._pkg_mgr)
+                    if found_pkgs:
+                        self._verified_pkgs[prog["name"]] = found_pkgs[0]
+                    elif packages.get("flatpak"):
+                        self._verified_pkgs[prog["name"]] = packages["flatpak"]
+
+            self.after(0, lambda: self._refresh_prog_list(container))
+            if "box" in cmd_box_ref:
+                new_cmd = self._build_install_cmd([p for p in self._programs if p.get("alt")])
+                self.after(0, lambda c=new_cmd: self._update_cmd_box(cmd_box_ref["box"], c))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _update_cmd_box(self, box, text):
+        box.configure(state="normal")
+        box.delete("1.0", "end")
+        box.insert("end", text)
+        box.configure(state="disabled")
+
+    def _refresh_prog_list(self, container):
+        for w in container.winfo_children():
+            w.destroy()
+        show_all = not self._prog_filter.get()
+        for prog in self._programs:
+            alt = prog.get("alt")
+            if not show_all and not alt:
+                continue
+            card = ctk.CTkFrame(container, fg_color=BG_CARD, corner_radius=8)
+            card.pack(fill="x", pady=2)
+            card.columnconfigure(1, weight=1)
+
+            icon = "✅" if alt else "❓"
+            ctk.CTkLabel(card, text=icon, font=(FONT_UI, 14), width=36).grid(
+                row=0, column=0, padx=10, pady=10)
+            ctk.CTkLabel(card, text=prog["name"], font=(FONT_UI, 11),
+                         text_color=TEXT, anchor="w").grid(
+                row=0, column=1, sticky="w", pady=10)
+
+            if alt:
+                alt_name = alt.get("name", "Unknown")
+                alt_desc = alt.get("desc", "Açıklama yok")
+                packages = alt.get("packages", {})
+
+                pkg_name = self._verified_pkgs.get(prog["name"]) or packages.get(self._pkg_mgr)
+
+                if not pkg_name and self._use_flatpak.get():
+                    pkg_name = packages.get("flatpak")
+
+                alt_f = ctk.CTkFrame(card, fg_color="#0d2b0d", corner_radius=6)
+                alt_f.grid(row=0, column=2, padx=10, pady=6)
+
+                ctk.CTkLabel(
+                    alt_f,
+                    text=f"🐧 {alt_name}",
+                    font=(FONT_UI, 10, "bold"),
+                    text_color=SUCCESS
+                ).pack(padx=10, pady=(4, 0))
+
+                if pkg_name:
+                    if pkg_name.startswith(("org.", "com.", "io.", "net.", "app.")):
+                        install_text = f"$ flatpak install flathub {pkg_name}"
+                    else:
+                        install_text = f"$ {self._pkg_mgr} install {pkg_name}"
+
+                    ctk.CTkLabel(
+                        alt_f,
+                        text=install_text,
+                        font=(FONT_MONO, 10),
+                        text_color=LINUX
+                    ).pack(padx=10)
+
+                ctk.CTkLabel(
+                    alt_f,
+                    text=alt_desc,
+                    font=(FONT_UI, 8),
+                    text_color=MUTED
+                ).pack(padx=10, pady=(0, 4))
+
+                if packages or prog["name"] in self._verified_pkgs:
+                    pkg_row = ctk.CTkFrame(alt_f, fg_color="transparent")
+                    pkg_row.pack(padx=10, pady=(0, 4))
+
+                    if prog["name"] in self._verified_pkgs:
+                        ctk.CTkLabel(
+                            pkg_row,
+                            text="✓ Depoda Doğrulandı",
+                            font=(FONT_UI, 8, "bold"),
+                            text_color="#4ade80",
+                            fg_color="#14532d",
+                            corner_radius=4,
+                            padx=4,
+                            pady=1
+                        ).pack(side="left", padx=2)
+                    else:
+                        for mgr in packages.keys():
+                            ctk.CTkLabel(
+                                pkg_row,
+                                text=mgr,
+                                font=(FONT_UI, 8),
+                                text_color="#60a5fa",
+                                fg_color="#1e3a5f",
+                                corner_radius=4,
+                                padx=4,
+                                pady=1
+                            ).pack(side="left", padx=2)
+
+    def _build_install_cmd(self, matched_progs) -> str:
+        pkgs = set()
+
+        for p in matched_progs:
+            alt = p.get("alt")
+
+            if not alt:
+                continue
+
+            packages = alt.get("packages", {})
+            pkg = self._verified_pkgs.get(p["name"]) or packages.get(self._pkg_mgr)
+
+            if not pkg and self._use_flatpak.get():
+                pkg = packages.get("flatpak")
+
+            if pkg and not pkg.startswith(("org.", "com.", "io.", "net.")):
+                pkgs.add(pkg)
+
+        if not pkgs:
+            return ""
+
+        mgr_cmd = PKG_MANAGERS.get(
+            self._pkg_mgr,
+            "sudo apt install -y"
+        )
+
+        return f"{mgr_cmd} {' '.join(sorted(pkgs))}"
+
+    # ── Sayfa 3 · Browser ─────────────────────────────────────────────────────
     def _show_browser(self):
         self._clear_content()
         self._activate_nav("🌐  Browser Verileri")
-        self._page_header("Browser Verileri",
-                          "Chrome, Firefox ve Edge verilerini dışa aktar")
+        self._page_header("Browser Verilerini İçe Aktar",
+                          "Yer imleri ve profil verilerini mevcut tarayıcıya aktar")
+
+        if not self._pack_dir:
+            self._no_pack_warning()
+            return
+
+        browser_dir = self._pack_dir / "browser"
+        if not browser_dir.exists():
+            ctk.CTkLabel(self._content,
+                         text="⚠️ Bu pakette tarayıcı verisi bulunamadı.",
+                         font=(FONT_UI, 13), text_color=WARNING).pack(pady=40)
+            return
 
         scroll = ctk.CTkScrollableFrame(self._content, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=32, pady=16)
-        browsers = self._detect_browsers()
 
-        if not browsers:
-            ctk.CTkLabel(scroll, text="⚠️ Desteklenen tarayıcı profili bulunamadı.",
-                         font=("Segoe UI", 14), text_color=WARNING).pack(pady=40)
-            return
+        self._browser_vars = {}
 
-        self._browser_vars: dict[str, tk.BooleanVar] = {}
-        for browser_name, profiles in browsers.items():
+        for browser_dir_entry in sorted(browser_dir.iterdir()):
+            if not browser_dir_entry.is_dir():
+                continue
+            browser_name = browser_dir_entry.name
+
+            # Linux'ta bu tarayıcının hedef yolu
+            linux_paths = {
+                "Chrome":  Path.home() / ".config" / "google-chrome",
+                "Firefox": Path.home() / ".mozilla" / "firefox",
+                "Edge":    Path.home() / ".config" / "microsoft-edge",
+                "Brave":   Path.home() / ".config" / "BraveSoftware" / "Brave-Browser",
+            }
+            linux_target = linux_paths.get(browser_name, Path.home() / ".config" / browser_name.lower())
+
+            icons = {"Chrome": "🔵", "Firefox": "🟠", "Edge": "🟣", "Brave": "🦁"}
+            icon = icons.get(browser_name, "🌐")
+
             section = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=12)
             section.pack(fill="x", pady=8)
+
             hdr = ctk.CTkFrame(section, fg_color="transparent")
-            hdr.pack(fill="x", padx=16, pady=(14, 6))
-            icons = {"Chrome": "🔵", "Firefox": "🟠", "Edge": "🟣", "Brave": "🦁"}
-            ctk.CTkLabel(hdr, text=f"{icons.get(browser_name, '🌐')} {browser_name}",
-                         font=("Segoe UI", 15, "bold"), text_color=TEXT).pack(side="left")
-            for profile_name, profile_path in profiles.items():
+            hdr.pack(fill="x", padx=16, pady=(14, 4))
+            ctk.CTkLabel(hdr, text=f"{icon} {browser_name}",
+                         font=(FONT_UI, 14, "bold"), text_color=TEXT).pack(side="left")
+
+            # Tarayıcı yüklü mü?
+            installed = self._is_browser_installed(browser_name)
+            status_text = "✅ Kurulu" if installed else "⚠️ Kurulu değil"
+            status_color = SUCCESS if installed else WARNING
+            ctk.CTkLabel(hdr, text=status_text,
+                         font=(FONT_UI, 10), text_color=status_color).pack(side="right")
+
+            # Profiller
+            for profile_dir in browser_dir_entry.iterdir():
+                if not profile_dir.is_dir():
+                    continue
+
                 row = ctk.CTkFrame(section, fg_color="transparent")
                 row.pack(fill="x", padx=16, pady=4)
-                key = f"{browser_name}::{profile_name}"
-                var = tk.BooleanVar(value=True)
-                self._browser_vars[key] = var
-                ctk.CTkCheckBox(row, text=profile_name, variable=var,
-                                text_color=TEXT, fg_color=ACCENT).pack(side="left")
-                ctk.CTkLabel(row, text=profile_path,
-                             font=("Segoe UI", 9), text_color=MUTED).pack(side="left", padx=10)
+
+                key = f"{browser_name}::{profile_dir.name}"
+                var = tk.BooleanVar(value=installed)
+                self._browser_vars[key] = {
+                    "var": var, "src": profile_dir,
+                    "dst": linux_target / profile_dir.name,
+                    "browser": browser_name
+                }
+
+                ctk.CTkCheckBox(row, text=profile_dir.name, variable=var,
+                                text_color=TEXT, fg_color=ACCENT,
+                                state="normal" if installed else "disabled").pack(side="left")
+
                 try:
-                    size = sum(f.stat().st_size for f in Path(profile_path).rglob("*") if f.is_file())
+                    size = sum(f.stat().st_size for f in profile_dir.rglob("*") if f.is_file())
                     ctk.CTkLabel(row, text=self._human(size),
-                                 font=("Segoe UI", 10), text_color=MUTED).pack(side="right")
+                                 font=(FONT_UI, 9), text_color=MUTED).pack(side="right")
                 except:
                     pass
 
-    def _detect_browsers(self) -> dict:
-        result = {}
-        appdata = os.environ.get("LOCALAPPDATA", "")
-        roaming  = os.environ.get("APPDATA", "")
-        checks = [
-            ("Chrome",  os.path.join(appdata, "Google", "Chrome", "User Data")),
-            ("Edge",    os.path.join(appdata, "Microsoft", "Edge", "User Data")),
-            ("Brave",   os.path.join(appdata, "BraveSoftware", "Brave-Browser", "User Data")),
-            ("Firefox", os.path.join(roaming, "Mozilla", "Firefox", "Profiles")),
-        ]
-        for browser, base in checks:
-            if not os.path.exists(base):
-                continue
-            profiles = {}
-            if browser == "Firefox":
-                ff_bases = [base, os.path.join(roaming, "Mozilla", "Firefox")]
-                for ff_base in ff_bases:
-                    if os.path.exists(ff_base):
-                        for entry in os.scandir(ff_base):
-                            if entry.is_dir() and entry.name not in ("Crash Reports", "Pending Pings", "Profiles"):
-                                has_profile_files = any((Path(entry.path) / f).exists() for f in ["places.sqlite", "prefs.js", "logins.json", "key4.db"])
-                                if has_profile_files or ".default" in entry.name:
-                                    profiles[entry.name] = entry.path
-            else:
-                for entry in os.scandir(base):
-                    if entry.is_dir() and (entry.name.startswith("Profile") or entry.name == "Default"):
-                        profiles[entry.name] = entry.path
-            if profiles:
-                result[browser] = profiles
-        return result
+            # Hedef bilgisi
+            info = ctk.CTkFrame(section, fg_color="transparent")
+            info.pack(fill="x", padx=16, pady=(4, 14))
+            ctk.CTkLabel(info, text=f"🎯 Hedef: {linux_target}",
+                         font=(FONT_MONO, 9), text_color=MUTED).pack(anchor="w")
 
-    # ── Sayfa 4 · Config (değişmedi) ──────────────────────────────────────────
+            if not installed:
+                ctk.CTkLabel(info,
+                             text=f"💡 Kurmak için: {self._pkg_mgr} install {browser_name.lower()}",
+                             font=(FONT_MONO, 10), text_color=LINUX).pack(anchor="w")
+
+    def _is_browser_installed(self, browser_name: str) -> bool:
+        executables = {
+            "Chrome":  ["google-chrome", "google-chrome-stable"],
+            "Firefox": ["firefox"],
+            "Edge":    ["microsoft-edge"],
+            "Brave":   ["brave-browser", "brave"],
+        }
+        for exe in executables.get(browser_name, []):
+            if shutil.which(exe):
+                return True
+        return False
+
+    # ── Sayfa 4 · Config ──────────────────────────────────────────────────────
     def _show_config(self):
         self._clear_content()
-        self._activate_nav("⚙️  Sistem Config")
-        self._page_header("Sistem Konfigürasyonu",
-                          "Ortam değişkenleri, hosts ve SSH anahtarlarını aktar")
+        self._activate_nav("⚙️  Konfigürasyon")
+        self._page_header("Konfigürasyonları Uygula",
+                          "SSH, git ve diğer sistem ayarlarını yerleştir")
+
+        if not self._pack_dir:
+            self._no_pack_warning()
+            return
+
+        config_dir = self._pack_dir / "config"
+        if not config_dir.exists():
+            ctk.CTkLabel(self._content,
+                         text="⚠️ Bu pakette konfigürasyon bulunamadı.",
+                         font=(FONT_UI, 13), text_color=WARNING).pack(pady=40)
+            return
 
         scroll = ctk.CTkScrollableFrame(self._content, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=32, pady=16)
-        self._config_vars: dict[str, tk.BooleanVar] = {}
 
-        items = [
-            ("🔑 SSH Anahtarları",
-             "SSH özel ve genel anahtarlarını (.ssh klasörü) aktar",
-             os.path.expanduser("~/.ssh"), "ssh_keys"),
-            ("📋 Hosts Dosyası",
-             "Özel alan adı eşleştirmelerini aktar",
-             r"C:\Windows\System32\drivers\etc\hosts", "hosts"),
-            ("🌍 Ortam Değişkenleri",
-             "PATH ve diğer kullanıcı ortam değişkenlerini JSON olarak aktar",
-             None, "env_vars"),
-            ("🔒 .gitconfig",
-             "Git kullanıcı adı, e-posta ve ayarları",
-             os.path.expanduser("~/.gitconfig"), "gitconfig"),
-            ("📝 VSCode Ayarları",
-             "settings.json, keybindings.json ve uzantı listesi",
-             os.path.join(os.environ.get("APPDATA", ""), "Code", "User"), "vscode"),
-        ]
-        for title, desc, path, key in items:
+        self._config_vars = {}
+
+        # Konfigürasyon öğeleri
+        config_items = {
+            ".ssh":        ("🔑 SSH Anahtarları",   str(Path.home() / ".ssh"),       "600"),
+            "hosts":       ("📋 Hosts Dosyası",      "/etc/hosts",                    None),
+            "env_vars.json":("🌍 Ortam Değişkenleri","~/.bashrc / ~/.zshrc'ye ekle",  None),
+            ".gitconfig":  ("🔒 Git Konfigürasyonu", str(Path.home() / ".gitconfig"), None),
+            "User":        ("💻 VSCode Ayarları",    str(Path.home() / ".config/Code/User"), None),
+        }
+
+        for item in config_dir.iterdir():
+            label_info = config_items.get(item.name, (f"📄 {item.name}", str(Path.home() / item.name), None))
+            title, linux_dst, permissions = label_info
+
             card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10)
             card.pack(fill="x", pady=6)
-            exists = path is None or os.path.exists(path)
-            var = tk.BooleanVar(value=exists)
-            self._config_vars[key] = var
             inner = ctk.CTkFrame(card, fg_color="transparent")
             inner.pack(fill="x", padx=16, pady=12)
+
+            var = tk.BooleanVar(value=True)
+            self._config_vars[item.name] = {
+                "var": var, "src": item,
+                "dst": linux_dst, "perms": permissions
+            }
+
             row1 = ctk.CTkFrame(inner, fg_color="transparent")
             row1.pack(fill="x")
             ctk.CTkCheckBox(row1, text=title, variable=var,
-                            font=("Segoe UI", 13, "bold"),
-                            text_color=TEXT if exists else MUTED,
-                            fg_color=ACCENT,
-                            state="normal" if exists else "disabled").pack(side="left")
-            ctk.CTkLabel(row1,
-                         text="✅ Mevcut" if exists else "⚠️ Bulunamadı",
-                         font=("Segoe UI", 11),
-                         text_color=SUCCESS if exists else WARNING).pack(side="right")
-            ctk.CTkLabel(inner, text=desc, font=("Segoe UI", 11),
-                         text_color=MUTED, anchor="w").pack(anchor="w", pady=(4, 0))
-            if path:
-                ctk.CTkLabel(inner, text=f"📂 {path}", font=("Segoe UI", 9),
-                             text_color="#475569", wraplength=600).pack(anchor="w")
+                            font=(FONT_UI, 12, "bold"),
+                            text_color=TEXT, fg_color=ACCENT).pack(side="left")
 
-    # ── Sayfa 5 · Export ──────────────────────────────────────────────────────
-    def _show_export(self):
+            ctk.CTkLabel(inner, text=f"🎯 Hedef: {linux_dst}",
+                         font=(FONT_MONO, 9), text_color=SUCCESS).pack(anchor="w", pady=(4, 0))
+
+            if permissions:
+                ctk.CTkLabel(inner, text=f"🔒 İzinler: chmod {permissions} uygulanacak",
+                             font=(FONT_MONO, 9), text_color=WARNING).pack(anchor="w")
+
+            # Özel işlemler
+            if item.name == "env_vars.json":
+                ctk.CTkLabel(inner,
+                             text="ℹ️ Değişkenler ~/.bashrc ve ~/.profile dosyasına eklenecek",
+                             font=(FONT_UI, 9), text_color=MUTED).pack(anchor="w")
+            elif item.name == "hosts":
+                ctk.CTkLabel(inner,
+                             text="⚠️ /etc/hosts yazımı için sudo gerekli",
+                             font=(FONT_UI, 9), text_color=WARNING).pack(anchor="w")
+
+    # ── Sayfa 5 · Kurulum ─────────────────────────────────────────────────────
+    def _show_install(self):
         self._clear_content()
-        self._activate_nav("🚀  Export")
-        self._page_header("Export & Paketleme",
-                          "Seçilen her şeyi ZIP veya klasör olarak paketle")
+        self._activate_nav("🚀  Kurulum")
+        self._page_header("Kurulum",
+                          "Seçilen tüm öğeleri Linux sistemine yerleştir")
+
+        if not self._pack_dir:
+            self._no_pack_warning()
+            return
 
         main = ctk.CTkFrame(self._content, fg_color="transparent")
         main.pack(fill="both", expand=True, padx=32, pady=16)
 
-        dir_frame = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=10)
-        dir_frame.pack(fill="x", pady=8)
-        dir_inner = ctk.CTkFrame(dir_frame, fg_color="transparent")
-        dir_inner.pack(fill="x", padx=16, pady=14)
-        ctk.CTkLabel(dir_inner, text="📁 Çıktı Dizini",
-                     font=("Segoe UI", 13, "bold"), text_color=TEXT).pack(anchor="w")
-        row = ctk.CTkFrame(dir_inner, fg_color="transparent")
-        row.pack(fill="x", pady=(6, 0))
-        ctk.CTkEntry(row, textvariable=self._output_dir,
-                     font=("Segoe UI", 11), height=36).pack(
-            side="left", fill="x", expand=True, padx=(0, 8))
-        ctk.CTkButton(row, text="Seç", width=60, height=36,
-                      command=self._pick_output_dir).pack(side="right")
+        # Özet kutusu
+        summary = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=10)
+        summary.pack(fill="x", pady=(0, 12))
+        sum_inner = ctk.CTkFrame(summary, fg_color="transparent")
+        sum_inner.pack(fill="x", padx=16, pady=12)
+        ctk.CTkLabel(sum_inner, text="Kurulum Özeti",
+                     font=(FONT_UI, 13, "bold"), text_color=TEXT).pack(anchor="w")
 
-        self._loop_warn = ctk.CTkLabel(dir_inner,
-            text="", font=("Segoe UI", 10), text_color=DANGER)
-        self._loop_warn.pack(anchor="w", pady=(2, 0))
-        self._output_dir.trace_add("write", self._check_dir_loop)
+        folders_sel = sum(1 for v in self._folder_vars.values()
+                          if isinstance(v, dict) and v.get("var") and v["var"].get()
+                          and "src" in v)
+        browser_sel = sum(1 for v in self._browser_vars.values()
+                          if v.get("var") and v["var"].get())
+        config_sel  = sum(1 for v in self._config_vars.values()
+                          if v.get("var") and v["var"].get())
+        progs_count = sum(1 for p in self._programs if p.get("alt"))
 
-        fmt_frame = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=10)
-        fmt_frame.pack(fill="x", pady=8)
-        fmt_inner = ctk.CTkFrame(fmt_frame, fg_color="transparent")
-        fmt_inner.pack(fill="x", padx=16, pady=14)
-        ctk.CTkLabel(fmt_inner, text="📦 Paket Formatı",
-                     font=("Segoe UI", 13, "bold"), text_color=TEXT).pack(anchor="w")
-        self._fmt_var = tk.StringVar(value="zip")
-        row2 = ctk.CTkFrame(fmt_inner, fg_color="transparent")
-        row2.pack(fill="x", pady=(8, 0))
-        for val, lbl, desc in [
-            ("zip",    "ZIP Arşivi", "Tek dosya, kolay taşıma"),
-            ("folder", "Klasör",     "Direkt erişilebilir yapı"),
+        for label, count, color in [
+            (f"📁 {folders_sel} dosya klasörü kopyalanacak", folders_sel, TEXT),
+            (f"📦 {progs_count} program için kurulum komutu hazır", progs_count, TEXT),
+            (f"🌐 {browser_sel} tarayıcı profili içe aktarılacak", browser_sel, TEXT),
+            (f"⚙️ {config_sel} konfigürasyon yerleştirilecek", config_sel, TEXT),
         ]:
-            f = ctk.CTkFrame(row2, fg_color=BG_CARD2, corner_radius=8)
-            f.pack(side="left", padx=(0, 10), ipadx=10, ipady=6)
-            ctk.CTkRadioButton(f, text=lbl, variable=self._fmt_var, value=val,
-                               text_color=TEXT, fg_color=ACCENT).pack(padx=12, pady=(6, 2))
-            ctk.CTkLabel(f, text=desc, font=("Segoe UI", 10),
-                         text_color=MUTED).pack(padx=12, pady=(0, 6))
+            ctk.CTkLabel(sum_inner, text=label,
+                         font=(FONT_UI, 11),
+                         text_color=color if count > 0 else MUTED).pack(anchor="w")
 
-        self._log_box = ctk.CTkTextbox(main, height=200,
-                                        font=("Cascadia Code", 11),
-                                        fg_color=BG_CARD, text_color="#86efac",
+        # Seçenekler (kuru çalıştırma + flatpak)
+        opts = ctk.CTkFrame(main, fg_color=BG_CARD, corner_radius=10)
+        opts.pack(fill="x", pady=(0, 8))
+        opts_inner = ctk.CTkFrame(opts, fg_color="transparent")
+        opts_inner.pack(fill="x", padx=16, pady=10)
+        ctk.CTkCheckBox(opts_inner,
+            text="🧪 Kuru çalıştırma (hiçbir şey kopyalanmaz, sadece günlüğe yazar)",
+            variable=self._dry_run,
+            font=(FONT_UI, 11), text_color=TEXT,
+            fg_color=WARNING, hover_color="#ca8a04").pack(anchor="w")
+        if shutil.which("flatpak"):
+            ctk.CTkCheckBox(opts_inner,
+                text="📦 Sistem paketinde olmayanlar için Flatpak komutu da üret",
+                variable=self._use_flatpak,
+                font=(FONT_UI, 11), text_color=TEXT,
+                fg_color=ACCENT).pack(anchor="w", pady=(4, 0))
+
+        # Log
+        self._log_box = ctk.CTkTextbox(main, height=220,
+                                        font=(FONT_MONO, 11),
+                                        fg_color=BG_CARD, text_color=SUCCESS,
                                         corner_radius=10)
-        self._log_box.pack(fill="x", pady=12)
-        self._log_box.insert("end", "Export başlatmak için aşağıdaki butona tıkla...\n")
+        self._log_box.pack(fill="x", pady=8)
+        self._log_box.insert("end", "Kurulumu başlatmak için aşağıdaki butona tıkla...\n")
         self._log_box.configure(state="disabled")
 
+        # İlerleme
         self._progress = ctk.CTkProgressBar(main, height=12, corner_radius=6,
                                              fg_color=BG_CARD, progress_color=ACCENT)
         self._progress.pack(fill="x")
         self._progress.set(0)
 
-        self._export_btn = ctk.CTkButton(
-            main, text="🚀  Export Başlat",
-            command=self._start_export,
-            fg_color=ACCENT, hover_color="#2563EB",
-            font=("Segoe UI", 14, "bold"), height=46)
-        self._export_btn.pack(fill="x", pady=(12, 0))
-
-    def _check_dir_loop(self, *_):
-        out = Path(self._output_dir.get())
-        conflicts = []
-        for name, var in self._folder_vars.items():
-            if var.get():
-                src = Path(DEFAULT_FOLDERS.get(name, ""))
-                if src.exists() and _is_subpath(out, src):
-                    conflicts.append(name)
-        for p in self._custom_folders:
-            if _is_subpath(out, Path(p)):
-                conflicts.append(p)
-        if conflicts:
-            self._loop_warn.configure(
-                text=f"⛔ Döngü tehlikesi! Çıktı dizini kaynak klasörün içinde: {', '.join(conflicts)}")
-        else:
-            self._loop_warn.configure(text="")
-
-    def _pick_output_dir(self):
-        path = filedialog.askdirectory(title="Çıktı dizini seç")
-        if path:
-            self._output_dir.set(path)
+        # Buton
+        self._install_btn = ctk.CTkButton(
+            main, text="🚀  Kurulumu Başlat",
+            command=self._start_install,
+            fg_color=ACCENT, hover_color=ACCENT2,
+            font=(FONT_UI, 14, "bold"), height=46)
+        self._install_btn.pack(fill="x", pady=(12, 0))
 
     def _log(self, msg: str):
+        self._install_log_lines.append(msg)
         self._log_box.configure(state="normal")
         self._log_box.insert("end", f"{msg}\n")
         self._log_box.see("end")
         self._log_box.configure(state="disabled")
 
-    def _start_export(self):
-        out = Path(self._output_dir.get())
-        for name, var in self._folder_vars.items():
-            if var.get():
-                src = Path(DEFAULT_FOLDERS.get(name, ""))
-                if src.exists() and _is_subpath(out, src):
-                    messagebox.showerror(
-                        "Döngü Hatası",
-                        f"⛔ Çıktı dizini '{name}' klasörünün içinde!\n\n"
-                        f"Kaynak: {src}\nÇıktı:  {out}\n\n"
-                        "Lütfen farklı bir çıktı dizini seçin.")
-                    return
-        for p in self._custom_folders:
-            if _is_subpath(out, Path(p)):
-                messagebox.showerror(
-                    "Döngü Hatası",
-                    f"⛔ Çıktı dizini özel klasörün içinde!\n\n"
-                    f"Kaynak: {p}\nÇıktı:  {out}\n\n"
-                    "Lütfen farklı bir çıktı dizini seçin.")
-                return
-
-        self._export_btn.configure(state="disabled", text="⏳  Çalışıyor...")
+    def _start_install(self):
+        self._install_btn.configure(state="disabled", text="⏳  Kurulum yapılıyor...")
         self._log_box.configure(state="normal")
         self._log_box.delete("1.0", "end")
         self._log_box.configure(state="disabled")
+        self._install_log_lines = []
         self._progress.set(0)
-        threading.Thread(target=self._do_export, daemon=True).start()
+        threading.Thread(target=self._do_install, daemon=True).start()
 
-    def _do_export(self):
-        out_base = Path(self._output_dir.get())
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = out_base / f"W2L_{timestamp}"
-        out_dir.mkdir(parents=True, exist_ok=True)
+    def _do_install(self):
+        dry = self._dry_run.get()
+        tag = "🧪 [KURU]" if dry else "🚀"
 
         steps = []
-        for name, var in self._folder_vars.items():
-            if var.get():
-                src = DEFAULT_FOLDERS.get(name, "")
-                if src and os.path.exists(src):
-                    steps.append(("folder", name, src, out_dir / "files" / name))
-        for path in self._custom_folders:
-            if os.path.exists(path):
-                steps.append(("folder", Path(path).name, path,
-                               out_dir / "files" / Path(path).name))
-        if self._prog_results:
-            steps.append(("programs", "Program Listesi", None, out_dir / "programs.json"))
-        if hasattr(self, "_browser_vars"):
-            browsers = self._detect_browsers()
-            for key, var in self._browser_vars.items():
-                if var.get():
-                    browser, profile = key.split("::", 1)
-                    if browser in browsers and profile in browsers[browser]:
-                        src = browsers[browser][profile]
-                        steps.append(("folder", f"{browser}/{profile}",
-                                      src, out_dir / "browser" / browser / profile))
-        if hasattr(self, "_config_vars"):
-            config_map = {
-                "ssh_keys":  os.path.expanduser("~/.ssh"),
-                "hosts":     r"C:\Windows\System32\drivers\etc\hosts",
-                "gitconfig": os.path.expanduser("~/.gitconfig"),
-                "vscode":    os.path.join(os.environ.get("APPDATA", ""), "Code", "User"),
-            }
-            for key, var in self._config_vars.items():
-                if var.get() and key in config_map:
-                    src = config_map[key]
-                    if os.path.exists(src):
-                        steps.append(("copy", key, src,
-                                      out_dir / "config" / Path(src).name))
-                elif var.get() and key == "env_vars":
-                    steps.append(("env", "Ortam Değişkenleri", None,
-                                   out_dir / "config" / "env_vars.json"))
+
+        # 1. Dosya klasörleri
+        for key, info in self._folder_vars.items():
+            if not isinstance(info, dict) or "src" not in info:
+                continue
+            if info["var"].get():
+                overwrite_key = f"overwrite_{key}"
+                overwrite = False
+                if overwrite_key in self._folder_vars:
+                    ov = self._folder_vars[overwrite_key]
+                    if isinstance(ov, dict) and ov.get("var"):
+                        overwrite = ov["var"].get()
+                steps.append(("folder", key, info["src"], info["dst"], overwrite))
+
+        # 2. Browser verileri
+        for key, info in self._browser_vars.items():
+            if info["var"].get():
+                steps.append(("browser", key, info["src"], info["dst"], True))
+
+        # 3. Konfigürasyonlar
+        for key, info in self._config_vars.items():
+            if info["var"].get():
+                steps.append(("config", key, info["src"], info["dst"], info.get("perms")))
 
         total = len(steps)
         if total == 0:
-            self.after(0, lambda: self._log("⚠️ Seçili öğe yok!"))
-            self.after(0, lambda: self._export_btn.configure(
-                state="normal", text="🚀  Export Başlat"))
+            self.after(0, lambda: self._log("⚠️ Hiçbir öğe seçilmedi!"))
+            self.after(0, lambda: self._install_btn.configure(
+                state="normal", text="🚀  Kurulumu Başlat"))
             return
 
-        self.after(0, lambda: self._log(f"📦 {total} öğe export edilecek...\n"))
+        self.after(0, lambda t=tag, n=total: self._log(f"{t} {n} öğe işlenecek...\n"))
+
+        ok_count = 0
+        fail_count = 0
 
         for i, step in enumerate(steps):
-            kind, name, src, dst = step
+            kind, name, src, dst, extra = step
             self.after(0, lambda n=name: self._log(f"  → {n}..."))
+
             try:
-                if kind == "folder":
+                if dry:
+                    self.after(0, lambda n=name, d=dst:
+                               self._log(f"    🧪 [KURU] {n} → {d}"))
+                    ok_count += 1
+                elif kind in ("folder", "browser"):
+                    dst_path = Path(dst)
                     if os.path.isdir(src):
-                        self._safe_copy(src, dst, out_dir)
+                        if dst_path.exists() and extra:  # overwrite
+                            shutil.rmtree(dst_path, ignore_errors=True)
+                        dst_path.mkdir(parents=True, exist_ok=True)
+                        shutil.copytree(src, dst_path, dirs_exist_ok=True)
                     elif os.path.isfile(src):
-                        Path(dst).parent.mkdir(parents=True, exist_ok=True)
-                        try:
-                            shutil.copy2(src, dst)
-                        except (PermissionError, OSError):
-                            self.after(0, lambda n=name: self._log(
-                                f"    ⚠️ Atlandı (kilitli): {n}"))
-                elif kind == "copy":
-                    dst_p = Path(dst)
-                    if os.path.isdir(src):
-                        self._safe_copy(src, dst_p, out_dir)
-                    elif os.path.isfile(src):
-                        dst_p.parent.mkdir(parents=True, exist_ok=True)
-                        try:
-                            shutil.copy2(src, dst_p)
-                        except (PermissionError, OSError):
-                            self.after(0, lambda n=name: self._log(
-                                f"    ⚠️ Atlandı (kilitli): {n}"))
-                elif kind == "programs":
-                    # ── YENİ JSON YAPISI ──
-                    # Her kayıt:
-                    # {
-                    #   "name": "Discord",
-                    #   "alt": {
-                    #     "name": "Discord",
-                    #     "desc": "Linux sürümü mevcut",
-                    #     "packages": {
-                    #       "apt": "discord",
-                    #       "dnf": "discord",
-                    #       "pacman": "discord",
-                    #       "flatpak": "com.discordapp.Discord"
-                    #     }
-                    #   }
-                    # }
-                    Path(dst).parent.mkdir(parents=True, exist_ok=True)
-                    with open(dst, "w", encoding="utf-8") as f:
-                        json.dump(self._prog_results, f, ensure_ascii=False, indent=2)
-                elif kind == "env":
-                    Path(dst).parent.mkdir(parents=True, exist_ok=True)
-                    with open(dst, "w", encoding="utf-8") as f:
-                        json.dump(dict(os.environ), f, ensure_ascii=False, indent=2)
-                self.after(0, lambda n=name: self._log(f"    ✅ {n} tamamlandı"))
+                        dst_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src, dst_path)
+                    if kind == "browser" and "Firefox" in name:
+                        register_firefox_profile(dst_path.parent, dst_path.name)
+                        self.after(0, lambda: self._log("    🦊 Firefox profili profiles.ini dosyasına kaydedildi"))
+                    self.after(0, lambda n=name: self._log(f"    ✅ {n} kopyalandı"))
+                    ok_count += 1
+
+                elif kind == "config":
+                    perms = extra
+                    if name == "env_vars.json" and os.path.isfile(src):
+                        added, errs = self._apply_env_vars(src)
+                        for path, n in added:
+                            self.after(0, lambda p=path, c=n:
+                                       self._log(f"    ✅ {c} değişken {p}'ye eklendi"))
+                        for err in errs:
+                            self.after(0, lambda e=err:
+                                       self._log(f"    ⚠️ env_vars: {e}"))
+                        ok_count += 1 if added else 0
+                        fail_count += 1 if (errs and not added) else 0
+                    elif name == "hosts" and os.path.isfile(src):
+                        self.after(0, lambda s=src: self._log(
+                            "    ℹ️ Hosts dosyası kopyalanamadı (sudo gerekli). Manuel:\n"
+                            f"       sudo cp {s} /etc/hosts"))
+                    else:
+                        dst_path = Path(dst)
+                        if os.path.isdir(src):
+                            dst_path.mkdir(parents=True, exist_ok=True)
+                            shutil.copytree(src, dst_path, dirs_exist_ok=True)
+                        elif os.path.isfile(src):
+                            dst_path.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(src, dst_path)
+                        if perms:
+                            subprocess.run(["chmod", "-R", perms, str(dst_path)],
+                                           capture_output=True)
+                        self.after(0, lambda n=name: self._log(f"    ✅ {n} yerleştirildi"))
+                        ok_count += 1
+
             except Exception as e:
                 self.after(0, lambda n=name, err=e: self._log(f"    ❌ {n}: {err}"))
+                fail_count += 1
 
             self.after(0, lambda v=(i + 1) / total: self._progress.set(v))
 
-        if self._fmt_var.get() == "zip":
-            self.after(0, lambda: self._log("\n📦 ZIP arşivi oluşturuluyor..."))
-            zip_path = out_base / f"W2L_{timestamp}.zip"
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for f in out_dir.rglob("*"):
-                    if f.is_file():
-                        zf.write(f, f.relative_to(out_dir))
-            shutil.rmtree(out_dir, onexc=lambda f, p, e: None)
-            self.after(0, lambda p=zip_path: self._log(f"✅ ZIP: {p}"))
-        else:
-            self.after(0, lambda p=out_dir: self._log(f"✅ Klasör: {p}"))
+        # Kurulum komutu oluştur (sistem + opsiyonel flatpak)
+        matched_progs = [p for p in self._programs if p.get("alt")]
+        install_cmd = self._build_install_cmd(matched_progs)
+        flatpak_cmd = self._build_flatpak_cmd(matched_progs) if self._use_flatpak.get() else ""
 
-        self.after(0, lambda: self._log("\n🎉 Export tamamlandı!"))
-        self.after(0, lambda: self._progress.set(1.0))
-        self.after(0, lambda: self._export_btn.configure(
-            state="normal", text="🚀  Export Başlat"))
-        self.after(0, lambda: messagebox.showinfo(
-            "Tamamlandı", "Migration paketi başarıyla oluşturuldu!"))
+        if install_cmd:
+            self.after(0, lambda c=install_cmd: self._log(
+                f"\n📦 Sistem paket komutu:\n{c}"))
+        if flatpak_cmd:
+            self.after(0, lambda c=flatpak_cmd: self._log(
+                f"\n🟦 Flatpak (sistem paketinde olmayanlar için):\n{c}"))
+
+        # install_linux_apps.sh — kuru çalıştırmada da yazılır (referans için)
+        if install_cmd:
+            script = Path.home() / "install_linux_apps.sh"
+            try:
+                with open(script, "w") as f:
+                    f.write("#!/bin/bash\n")
+                    f.write("# Win2Linux Migration - Program Kurulum Scripti\n")
+                    f.write(f"# Oluşturulma: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+                    f.write(install_cmd + "\n")
+                    if flatpak_cmd:
+                        f.write("\n# Flatpak fallback\n")
+                        f.write(flatpak_cmd + "\n")
+                os.chmod(script, 0o755)
+                self.after(0, lambda p=script: self._log(f"✅ Kurulum scripti: {p}"))
+            except Exception as e:
+                self.after(0, lambda err=e:
+                           self._log(f"⚠️ Kurulum scripti yazılamadı: {err}"))
+
+        # Günlük + markdown rapor (kuru çalıştırmada da yazılır)
+        self.after(0, lambda o=ok_count, f=fail_count, d=dry:
+                   self._finalize_install(o, f, d, install_cmd, flatpak_cmd))
+
+    def _finalize_install(self, ok: int, fail: int, dry: bool,
+                          install_cmd: str, flatpak_cmd: str):
+        self._log(f"\n🎉 Tamamlandı — {ok} başarılı, {fail} hata"
+                  + (" · KURU ÇALIŞTIRMA, hiçbir şey yazılmadı" if dry else ""))
+        self._progress.set(1.0)
+        self._install_btn.configure(state="normal", text="🚀  Kurulumu Başlat")
+
+        # Save log
+        log_path = Path.home() / "win2linux_migration.log"
+        report_path = Path.home() / "migration_report.md"
+        try:
+            log_path.write_text("\n".join(self._install_log_lines) + "\n",
+                                encoding="utf-8")
+            self._log(f"📝 Günlük: {log_path}")
+        except Exception as e:
+            self._log(f"⚠️ Günlük yazılamadı: {e}")
+
+        try:
+            self._write_report(report_path, ok, fail, dry, install_cmd, flatpak_cmd)
+            self._log(f"📄 Rapor: {report_path}")
+        except Exception as e:
+            self._log(f"⚠️ Rapor yazılamadı: {e}")
+
+        title = "Kuru Çalıştırma" if dry else "Tamamlandı"
+        msg = (f"{ok} işlem başarılı, {fail} hata.\n\n"
+               f"Günlük: {log_path}\nRapor: {report_path}")
+        if not dry and install_cmd:
+            msg += "\n\n~/install_linux_apps.sh ile programları kurabilirsin."
+        messagebox.showinfo(title, msg)
+
+    def _write_report(self, path: Path, ok: int, fail: int, dry: bool,
+                      install_cmd: str, flatpak_cmd: str):
+        lines = []
+        lines.append("# Win2Linux Migration Raporu")
+        lines.append("")
+        lines.append(f"- **Tarih:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        lines.append(f"- **Bilgisayar:** {platform.node()}")
+        lines.append(f"- **Paket Yöneticisi:** {self._pkg_mgr}")
+        lines.append(f"- **Kuru Çalıştırma:** {'evet' if dry else 'hayır'}")
+        lines.append(f"- **Sonuç:** {ok} başarılı, {fail} hata")
+        lines.append("")
+
+        folder_rows = [(k, v) for k, v in self._folder_vars.items()
+                       if isinstance(v, dict) and "src" in v and v["var"].get()]
+        if folder_rows:
+            lines.append("## 📁 Dosya Klasörleri")
+            for name, info in folder_rows:
+                lines.append(f"- `{name}` → `{info['dst']}`")
+            lines.append("")
+
+        browser_rows = [(k, v) for k, v in self._browser_vars.items()
+                        if v["var"].get()]
+        if browser_rows:
+            lines.append("## 🌐 Tarayıcı Profilleri")
+            for key, info in browser_rows:
+                lines.append(f"- `{key}` → `{info['dst']}`")
+            lines.append("")
+
+        config_rows = [(k, v) for k, v in self._config_vars.items()
+                       if v["var"].get()]
+        if config_rows:
+            lines.append("## ⚙️ Konfigürasyonlar")
+            for name, info in config_rows:
+                lines.append(f"- `{name}` → `{info['dst']}`")
+            lines.append("")
+
+        if install_cmd:
+            lines.append("## 📦 Program Kurulum Komutu")
+            lines.append("")
+            lines.append("```bash")
+            lines.append(install_cmd)
+            if flatpak_cmd:
+                lines.append("")
+                lines.append("# Flatpak fallback")
+                lines.append(flatpak_cmd)
+            lines.append("```")
+            lines.append("")
+
+        path.write_text("\n".join(lines), encoding="utf-8")
+
+    def _apply_env_vars(self, json_path) -> tuple[list, list]:
+        """Detect user shell, append exports to ~/.bashrc and/or ~/.zshrc.
+
+        Returns (added, errors) where added is a list of (file, count) tuples
+        and errors is a list of error message strings.
+        """
+        added: list[tuple[str, int]] = []
+        errors: list[str] = []
+
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                env_data = json.load(f)
+        except Exception as e:
+            return [], [f"env_vars.json okunamadı: {e}"]
+
+        skip = {"PATH", "HOME", "USER", "SHELL", "TERM", "DISPLAY",
+                "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
+                "LOGNAME", "MAIL", "OLDPWD", "PWD"}
+
+        # Hangi shell init dosyalarına yazılacak?
+        targets: list[Path] = []
+        user_shell = os.environ.get("SHELL", "")
+        bashrc = Path.home() / ".bashrc"
+        zshrc = Path.home() / ".zshrc"
+        if "zsh" in user_shell and zshrc.exists():
+            targets.append(zshrc)
+        if "bash" in user_shell or not targets:
+            if bashrc.exists() or not zshrc.exists():
+                targets.append(bashrc)
+        # Her iki shell mevcut olabilir; ikisinde de varsa ikisine yaz
+        if zshrc.exists() and zshrc not in targets:
+            targets.append(zshrc)
+        if bashrc.exists() and bashrc not in targets:
+            targets.append(bashrc)
+
+        if not targets:
+            return [], ["~/.bashrc veya ~/.zshrc bulunamadı"]
+
+        for rc in targets:
+            try:
+                existing = rc.read_text(encoding="utf-8") if rc.exists() else ""
+                additions = ["\n# === Win2Linux Migration - Ortam Değişkenleri ==="]
+                count = 0
+                for key, value in env_data.items():
+                    if not isinstance(key, str) or not isinstance(value, str):
+                        continue
+                    if key in skip or key.startswith("_"):
+                        continue
+                    if f'export {key}=' in existing:
+                        continue
+                    safe_val = value.replace("\\", "/").replace('"', '\\"')
+                    additions.append(f'export {key}="{safe_val}"')
+                    count += 1
+                if count > 0:
+                    with open(rc, "a", encoding="utf-8") as f:
+                        f.write("\n".join(additions) + "\n")
+                    added.append((str(rc), count))
+            except Exception as e:
+                errors.append(f"{rc}: {e}")
+
+        return added, errors
+
+    def _build_flatpak_cmd(self, matched_progs) -> str:
+        """Best-effort flatpak install for packages whose system pkg name suggests
+        a known flathub app. Conservative: only emits well-known mappings."""
+        if not shutil.which("flatpak"):
+            return ""
+        flathub = {
+            "discord":            "com.discordapp.Discord",
+            "spotify":            "com.spotify.Client",
+            "obs-studio":         "com.obsproject.Studio",
+            "blender":            "org.blender.Blender",
+            "gimp":               "org.gimp.GIMP",
+            "inkscape":           "org.inkscape.Inkscape",
+            "krita":              "org.kde.krita",
+            "vlc":                "org.videolan.VLC",
+            "libreoffice":        "org.libreoffice.LibreOffice",
+            "telegram-desktop":   "org.telegram.desktop",
+            "signal-desktop":     "org.signal.Signal",
+            "thunderbird":        "org.mozilla.Thunderbird",
+            "audacity":           "org.audacityteam.Audacity",
+            "kdenlive":           "org.kde.kdenlive",
+            "darktable":          "org.darktable.Darktable",
+            "freecad":            "org.freecad.FreeCAD",
+            "bitwarden":          "com.bitwarden.desktop",
+            "anydesk":            "com.anydesk.Anydesk",
+            "rustdesk":           "com.rustdesk.RustDesk",
+            "zoom":               "us.zoom.Zoom",
+            "slack-desktop":      "com.slack.Slack",
+            "obsidian":           "md.obsidian.Obsidian",
+            "joplin":             "net.cozic.joplin_desktop",
+            "calibre":            "com.calibre_ebook.calibre",
+            "qbittorrent":        "org.qbittorrent.qBittorrent",
+            "filezilla":          "org.filezilla.FileZilla",
+            "heroic":             "com.heroicgameslauncher.hgl",
+        }
+        ids = []
+        seen = set()
+        for p in matched_progs:
+            alt = p.get("alt")
+
+            if not alt:
+                continue
+
+            packages = alt.get("packages", {})
+
+            flatpak_id = packages.get("flatpak")
+
+            if flatpak_id and flatpak_id not in seen:
+                seen.add(flatpak_id)
+                ids.append(flatpak_id)
+        return "flatpak install -y flathub " + " ".join(sorted(ids))
+
+    # ── Yardımcılar ───────────────────────────────────────────────────────────
+    def _no_pack_warning(self):
+        frame = ctk.CTkFrame(self._content, fg_color="transparent")
+        frame.pack(expand=True)
+        ctk.CTkLabel(frame, text="📦", font=(FONT_UI, 48)).pack()
+        ctk.CTkLabel(frame, text="Önce bir migration paketi yükleyin",
+                     font=(FONT_UI, 15), text_color=MUTED).pack(pady=8)
+        ctk.CTkButton(frame, text="← Paket Seç",
+                      command=self._show_select,
+                      fg_color=ACCENT, hover_color=ACCENT2,
+                      font=(FONT_UI, 12), height=38).pack()
+
+    def _copy_to_clipboard(self, text: str):
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("Kopyalandı", "Komut panoya kopyalandı!")
 
     @staticmethod
-    def _safe_copy(src, dst, out_dir: Path = None):
-        src_path = Path(src)
+    def _detect_terminal() -> str | None:
+        """First available terminal emulator on PATH, or None."""
+        for term in ("x-terminal-emulator", "gnome-terminal", "konsole",
+                     "xfce4-terminal", "mate-terminal", "lxterminal", "tilix",
+                     "kitty", "alacritty", "foot", "terminator", "xterm"):
+            if shutil.which(term):
+                return term
+        return None
+
+    def _run_in_terminal(self, command: str):
+        """Launch the install command in a new terminal window.
+
+        Wraps the command in a script so it survives quoting and pauses on
+        completion so the user can see the output before the window closes.
+        """
+        term = self._detect_terminal()
+        if not term:
+            messagebox.showerror(
+                "Terminal yok",
+                "Sistemde bilinen bir terminal emülatörü bulunamadı.")
+            return
+
+        script = Path.home() / ".win2linux_run.sh"
         try:
-            if src_path.is_symlink():
-                return
-            if src_path.is_dir():
-                if out_dir and _is_subpath(src_path, out_dir):
-                    return
-                if src_path.name in SKIP_DIR_NAMES:
-                    return
-                os.makedirs(dst, exist_ok=True)
-                for item in src_path.iterdir():
-                    if item.is_symlink():
-                        continue
-                    if item.name in SKIP_DIR_NAMES:
-                        continue
-                    if out_dir and _is_subpath(item, out_dir):
-                        continue
-                    child_dst = Path(dst) / item.name
-                    try:
-                        Win2LinuxApp._safe_copy(str(item), str(child_dst), out_dir)
-                    except PermissionError:
-                        if item.is_dir():
-                            try:
-                                zip_dst = Path(dst) / f"{item.name}_backup.zip"
-                                with zipfile.ZipFile(zip_dst, "w",
-                                                     zipfile.ZIP_DEFLATED) as zf:
-                                    for f in item.rglob("*"):
-                                        if f.is_file() and not f.is_symlink():
-                                            try:
-                                                zf.write(f, f.relative_to(item))
-                                            except (PermissionError, OSError):
-                                                pass
-                                if zip_dst.stat().st_size < 22:
-                                    zip_dst.unlink()
-                            except Exception:
-                                pass
-                    except OSError:
-                        pass
-            else:
-                Path(dst).parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    shutil.copy2(src, dst)
-                except (PermissionError, OSError):
-                    pass
-        except Exception:
-            pass
+            script.write_text(
+                "#!/bin/bash\n"
+                "set -e\n"
+                f"echo '$ {command}'\n"
+                f"{command}\n"
+                "echo\n"
+                "echo '── Bitti. Pencereyi kapatmak için Enter ──'\n"
+                "read -r _\n",
+                encoding="utf-8")
+            os.chmod(script, 0o755)
+        except Exception as e:
+            messagebox.showerror("Hata",
+                f"Geçici betik yazılamadı:\n{e}")
+            return
+
+        # Each terminal has its own --execute flag.
+        argv: list[str]
+        if term in ("gnome-terminal", "tilix", "mate-terminal", "xfce4-terminal"):
+            argv = [term, "--", "bash", str(script)]
+        elif term == "konsole":
+            argv = [term, "-e", "bash", str(script)]
+        elif term in ("xterm", "lxterminal", "terminator", "x-terminal-emulator"):
+            argv = [term, "-e", f"bash {script}"]
+        elif term in ("kitty", "alacritty", "foot"):
+            argv = [term, "bash", str(script)]
+        else:
+            argv = [term, "-e", "bash", str(script)]
+
+        try:
+            subprocess.Popen(argv)
+        except Exception as e:
+            messagebox.showerror("Hata",
+                f"{term} başlatılamadı:\n{e}")
 
     @staticmethod
     def _human(n: int) -> str:
@@ -1248,8 +1613,8 @@ class Win2LinuxApp(ctk.CTk):
 
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    if platform.system() != "Windows":
-        print("Bu uygulama yalnızca Windows'ta çalışır!")
+    if platform.system() == "Windows":
+        print("Bu uygulama Linux'ta çalıştırılmalıdır!")
         sys.exit(1)
-    app = Win2LinuxApp()
+    app = Linux2HomeApp()
     app.mainloop()
