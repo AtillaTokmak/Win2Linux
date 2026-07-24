@@ -22,7 +22,7 @@
 
  ---
 
- ## 🛠️ Kullanı
+ ## 🛠️ Kullanım
 
  ### `win2linux.py`
  Bu betik, Windows’un altında çalışır. Sisteminizi analiz eder ve Linux’a geçiş sırasında hangi uygulamaların kurulması gerektiğini belirler.bash
@@ -32,8 +32,12 @@
 
  ### `linux2home.py`
  Bu betik, Linux ortamında çalışır. Windows’tan gelen analiz verisine göre uygulama kurulumlarını ve sistem ayarlarını gösterir. Kullanıcıya otomatik komutların üretimi ve doğrudan
-  terminal üzerinden çalıştırılması imkanı sunar.bash
+  terminal üzerinden çalıştırılması imkanı sunar. 
+ 
+
+```
  python linux2home.py
+ ```
  ---
 
  ## 🧪 Örnek Senaryo
